@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Welcome to the Chess Puzzle Trainer</h2>
+<p>Click below to see a random puzzle:</p>
+<a href="{{ url_for('random_puzzle_view') }}">Get Random Puzzle</a>
+{% endblock %}

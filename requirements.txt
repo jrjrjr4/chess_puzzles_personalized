@@ -1,4 +1,5 @@
 Flask==2.3.3
 python-chess==1.999
-pandas==2.1.1        # If you want an easy CSV reading approach
-# or you can use the built-in csv module, but pandas is convenient.
+pandas==2.1.1
+pytest==8.3.4
+pytest-cov==4.1.0
