@@ -1,21 +1,20 @@
 {% extends "base.html" %}
-
 {% block content %}
-  <h2>Here is your puzzle</h2>
-  {% if puzzle %}
-    <p><strong>ID:</strong> {{ puzzle.id }}</p>
-    <p><strong>FEN:</strong> {{ puzzle.fen }}</p>
-    <p><strong>Themes:</strong> {{ puzzle.themes }}</p>
-    <p><strong>Rating:</strong> {{ puzzle.rating }}</p>
-
-    <!-- 
-      Just for demonstration, we’re showing the puzzle data in text form.
-      Eventually, you can use a JS chessboard library to render the position visually.
-    -->
-  {% else %}
-    <p>No puzzle found!</p>
-  {% endif %}
-
-  <hr/>
-  <a href="{{ url_for('random_puzzle_view') }}">Get Another Puzzle</a>
+<h2>Chess Puzzle</h2>
+<div id="board" style="width: 400px;"></div>
+<p>Puzzle ID: {{ puzzle.id }}</p>
+<p>Popularity: {{ puzzle.popularity }}</p>
+<p>Rating: {{ puzzle.rating }}</p>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard.js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script>
+  // The FEN is passed via Jinja
+  var puzzleFEN = "{{ puzzle.fen }}";
+  
+  // Initialize the board
+  var board = Chessboard('board', {
+    position: puzzleFEN,
+    pieceTheme: 'https://cdnjs.cloudflare.com/ajax/libs/chessboard.js/1.0.0/img/chesspieces/wikipedia/{piece}.png'
+  });
+</script>
 {% endblock %}
