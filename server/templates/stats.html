@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="stats-container">
+    <div class="stats-header">
+        <h1>Your Statistics</h1>
+        <div class="overall-rating">
+            <span class="rating-label">Overall Rating</span>
+            <span class="rating-value">{{ overall_rating }}</span>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Ratings by Category</h2>
+        <p class="stats-hint">Categories are sorted by rating - your weaknesses appear first and will be shown more often!</p>
+        
+        {% if category_ratings %}
+        <div class="category-grid">
+            {% for category, rating in category_ratings %}
+            {% set bar_width = ((rating - 400) / 2000 * 100) %}
+            {% if bar_width > 100 %}{% set bar_width = 100 %}{% endif %}
+            {% if bar_width < 0 %}{% set bar_width = 0 %}{% endif %}
+            <div class="category-card {% if loop.index <= 3 %}weakness{% elif loop.index > (category_ratings|length) - 3 %}strength{% endif %}">
+                <div class="category-name">{{ category }}</div>
+                <div class="category-rating">{{ rating }}</div>
+                <div class="rating-bar">
+                    <div class="rating-fill" style="width: {{ bar_width }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-stats">
+            <p>No statistics yet! Start solving puzzles to see your ratings.</p>
+            <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-primary">
+                <i class="fas fa-play"></i> Start Training
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="stats-actions">
+        <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-primary">
+            <i class="fas fa-chess"></i> Continue Training
+        </a>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+            <i class="fas fa-home"></i> Home
+        </a>
+    </div>
+</div>
+
+<style>
+.stats-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stats-header h1 {
+    margin: 0;
+    font-size: 2.5rem;
+}
+
+.overall-rating {
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+    padding: 1.5rem 2rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+.rating-label {
+    display: block;
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin-bottom: 0.3rem;
+}
+
+.rating-value {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.stats-section {
+    margin-bottom: 2rem;
+}
+
+.stats-section h2 {
+    margin-bottom: 0.5rem;
+}
+
+.stats-hint {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.category-card {
+    background-color: var(--bg-secondary);
+    padding: 1.2rem;
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--bg-tertiary);
+    transition: transform 0.2s ease;
+}
+
+.category-card:hover {
+    transform: translateX(5px);
+}
+
+.category-card.weakness {
+    border-left-color: #f44336;
+}
+
+.category-card.strength {
+    border-left-color: var(--accent-color);
+}
+
+.category-name {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.category-rating {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.rating-bar {
+    height: 6px;
+    background-color: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.rating-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f44336, #ff9800, var(--accent-color));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.no-stats {
+    text-align: center;
+    padding: 3rem;
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+}
+
+.no-stats p {
+    margin-bottom: 1.5rem;
+    color: var(--text-secondary);
+}
+
+.stats-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+@media (max-width: 600px) {
+    .stats-header {
+        flex-direction: column;
+        gap: 1.5rem;
+        text-align: center;
+    }
+    
+    .category-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

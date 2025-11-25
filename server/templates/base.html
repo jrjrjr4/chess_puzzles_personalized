@@ -1,17 +1,51 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Chess Puzzle Trainer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  </head>
-  <body>
-    <header>
-      <h1>Chess Puzzle Trainer</h1>
-    </header>
-    <main>
-      {% block content %}{% endblock %}
-    </main>
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
-  </body>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chess Puzzle Trainer</title>
+  <!-- Linking our custom CSS file -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <!-- Google Fonts for a premium look -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Chessboard CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+</head>
+
+<body>
+  <header class="main-header">
+    <div class="logo">
+      <i class="fas fa-chess-knight"></i> PuzzleTrainer
+    </div>
+    <nav>
+      {% if user %}
+      <span class="user-info">Welcome, {{ user.username }}</span>
+      <a href="{{ url_for('stats') }}" class="btn btn-secondary">
+        <i class="fas fa-chart-bar"></i> Stats
+      </a>
+      <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+      {% else %}
+      <a href="{{ url_for('login') }}" class="btn btn-primary">Start Training</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- This block is where child templates (like index.html) will inject their content -->
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- jQuery and Chessboard.js for the chess board visualization -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+  <!-- chess.js for move validation and game logic -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
+
 </html>

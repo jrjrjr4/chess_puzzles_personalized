@@ -1,7 +1,27 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Welcome to the Chess Puzzle Trainer</h2>
-<p>Click below to see a random puzzle:</p>
-<a href="{{ url_for('random_puzzle_view') }}">Get Random Puzzle</a>
+<div class="hero-section">
+    <h1>Master Your Chess Tactics</h1>
+    <p class="subtitle">Train with personalized puzzles to improve your rating.</p>
+
+    <div class="action-buttons">
+        {% if user %}
+        <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-lg btn-primary">
+            <i class="fas fa-play"></i> Continue Training
+        </a>
+        <a href="{{ url_for('stats') }}" class="btn btn-lg btn-secondary">
+            <i class="fas fa-chart-bar"></i> View Stats
+        </a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-lg btn-primary">
+            <i class="fas fa-play"></i> Start Training
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not user %}
+    <p class="login-hint">Click "Start Training" to begin tracking your progress!</p>
+    {% endif %}
+</div>
 {% endblock %}
