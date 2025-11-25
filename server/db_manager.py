@@ -262,3 +262,118 @@ class DBManager:
         except Exception as e:
             print(f"Error in reset_all_user_ratings: {e}")
             return 0
+
+    # ==================== PUZZLE METHODS ====================
+    
+    def get_all_puzzles(self):
+        """
+        Fetches all puzzles from Supabase.
+        Returns a list of puzzle dictionaries formatted for the app.
+        """
+        if not self.client:
+            return []
+        
+        try:
+            # Fetch all puzzles (may need pagination for very large datasets)
+            puzzles = []
+            page_size = 1000
+            offset = 0
+            
+            while True:
+                response = self.client.table('puzzles').select('*').range(offset, offset + page_size - 1).execute()
+                if not response.data:
+                    break
+                
+                for row in response.data:
+                    puzzle = {
+                        'id': row['puzzle_id'],
+                        'fen': row['fen'],
+                        'moves': row['moves'].split(),
+                        'rating': row['rating'],
+                        'themes': row['themes'].split() if row['themes'] else [],
+                        'popularity': row['popularity']
+                    }
+                    puzzles.append(puzzle)
+                
+                if len(response.data) < page_size:
+                    break
+                offset += page_size
+            
+            print(f"Loaded {len(puzzles)} puzzles from Supabase")
+            return puzzles
+        except Exception as e:
+            print(f"Error in get_all_puzzles: {e}")
+            return []
+    
+    def get_puzzles_by_theme(self, theme, limit=100):
+        """
+        Fetches puzzles containing a specific theme.
+        Uses text search on the themes column.
+        """
+        if not self.client:
+            return []
+        
+        try:
+            # Use ilike for case-insensitive partial match
+            response = self.client.table('puzzles').select('*').ilike('themes', f'%{theme}%').limit(limit).execute()
+            
+            puzzles = []
+            for row in response.data:
+                puzzle = {
+                    'id': row['puzzle_id'],
+                    'fen': row['fen'],
+                    'moves': row['moves'].split(),
+                    'rating': row['rating'],
+                    'themes': row['themes'].split() if row['themes'] else [],
+                    'popularity': row['popularity']
+                }
+                puzzles.append(puzzle)
+            
+            return puzzles
+        except Exception as e:
+            print(f"Error in get_puzzles_by_theme: {e}")
+            return []
+    
+    def get_puzzles_by_rating_range(self, min_rating, max_rating, theme=None, limit=100):
+        """
+        Fetches puzzles within a rating range, optionally filtered by theme.
+        """
+        if not self.client:
+            return []
+        
+        try:
+            query = self.client.table('puzzles').select('*').gte('rating', min_rating).lte('rating', max_rating)
+            
+            if theme:
+                query = query.ilike('themes', f'%{theme}%')
+            
+            response = query.limit(limit).execute()
+            
+            puzzles = []
+            for row in response.data:
+                puzzle = {
+                    'id': row['puzzle_id'],
+                    'fen': row['fen'],
+                    'moves': row['moves'].split(),
+                    'rating': row['rating'],
+                    'themes': row['themes'].split() if row['themes'] else [],
+                    'popularity': row['popularity']
+                }
+                puzzles.append(puzzle)
+            
+            return puzzles
+        except Exception as e:
+            print(f"Error in get_puzzles_by_rating_range: {e}")
+            return []
+    
+    def get_puzzle_count(self):
+        """Returns the total number of puzzles in the database."""
+        if not self.client:
+            return 0
+        
+        try:
+            response = self.client.table('puzzles').select('puzzle_id', count='exact').limit(1).execute()
+            return response.count or 0
+        except Exception as e:
+            print(f"Error in get_puzzle_count: {e}")
+            return 0

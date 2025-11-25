@@ -28,31 +28,57 @@ def get_theme_display_name(theme):
     """Returns the display name for a theme."""
     return TRACKED_THEMES.get(theme, theme)
 
-def load_puzzles():
+def load_puzzles(db_manager=None):
+    """
+    Load puzzles from Supabase if available, otherwise fall back to CSV.
+    
+    Args:
+        db_manager: Optional DBManager instance for Supabase access
+    
+    Returns:
+        List of puzzle dictionaries
+    """
+    # Try loading from Supabase first
+    if db_manager and db_manager.client:
+        puzzles = db_manager.get_all_puzzles()
+        if puzzles:
+            print(f"Loaded {len(puzzles)} puzzles from Supabase")
+            return puzzles
+        print("No puzzles in Supabase, falling back to CSV")
+    
+    # Fall back to CSV file
+    return load_puzzles_from_csv()
+
+def load_puzzles_from_csv():
+    """Load puzzles from the local CSV file."""
     puzzle_list = []
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    data_file = os.path.join(BASE_DIR, '../data/lichess_puzzles_trim.csv')
+    data_file = os.path.join(BASE_DIR, '../data/filtered_puzzles.csv')
 
-    with open(data_file, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Convert Themes (space-separated in Lichess CSV)
-            themes_str = row.get('Themes', '')
-            themes_list = themes_str.split() if themes_str else []
+    try:
+        with open(data_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Convert Themes (space-separated in Lichess CSV)
+                themes_str = row.get('Themes', '')
+                themes_list = themes_str.split() if themes_str else []
 
-            # Convert popularity (default to 0 if missing)
-            popularity = int(row.get('Popularity', 0))
+                # Convert popularity (default to 0 if missing)
+                popularity = int(row.get('Popularity', 0))
 
-            puzzle = {
-                'id': row.get('PuzzleId', ''),
-                'fen': row.get('FEN', ''),
-                'moves': row.get('Moves', '').split(),
-                'rating': int(row.get('Rating', DEFAULT_RATING)),
-                'themes': themes_list,
-                'popularity': popularity
-            }
-            puzzle_list.append(puzzle)
-
+                puzzle = {
+                    'id': row.get('PuzzleId', ''),
+                    'fen': row.get('FEN', ''),
+                    'moves': row.get('Moves', '').split(),
+                    'rating': int(row.get('Rating', DEFAULT_RATING)),
+                    'themes': themes_list,
+                    'popularity': popularity
+                }
+                puzzle_list.append(puzzle)
+        print(f"Loaded {len(puzzle_list)} puzzles from CSV")
+    except FileNotFoundError:
+        print(f"Warning: CSV file not found at {data_file}")
+    
     return puzzle_list
 
 
