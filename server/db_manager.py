@@ -1,6 +1,9 @@
 import os
 from supabase import create_client, Client
 
+DEFAULT_RATING = 1600  # Starting rating for all categories
+
+
 class DBManager:
     def __init__(self):
         url = os.environ.get("SUPABASE_URL")
@@ -109,27 +112,31 @@ class DBManager:
     def calculate_k_factor(self, attempts):
         """
         Calculate K-factor based on number of attempts.
-        - 0 attempts: K = 150 (very provisional, big swings)
-        - 1-3 attempts: K = 120
-        - 4-7 attempts: K = 80
-        - 8-15 attempts: K = 50
-        - 16-25 attempts: K = 30
-        - 25+ attempts: K = 15 (established rating)
+        Much higher K-factors for faster convergence with 10 categories.
+        - 0 attempts: K = 250 (first attempt, massive swing to quickly find level)
+        - 1-2 attempts: K = 200
+        - 3-5 attempts: K = 150
+        - 6-10 attempts: K = 100
+        - 11-20 attempts: K = 60
+        - 21-35 attempts: K = 40
+        - 35+ attempts: K = 25 (established rating, still responsive)
         """
         if attempts <= 0:
+            return 250
+        elif attempts <= 2:
+            return 200
+        elif attempts <= 5:
             return 150
-        elif attempts <= 3:
-            return 120
-        elif attempts <= 7:
-            return 80
-        elif attempts <= 15:
-            return 50
-        elif attempts <= 25:
-            return 30
+        elif attempts <= 10:
+            return 100
+        elif attempts <= 20:
+            return 60
+        elif attempts <= 35:
+            return 40
         else:
-            return 15
+            return 25
 
-    def update_user_category_rating(self, user_id, category, success, puzzle_rating=1200):
+    def update_user_category_rating(self, user_id, category, success, puzzle_rating=1600):
         """
         Updates rating for a category using adaptive K-factor.
         Returns (old_rating, new_rating, change, attempts).
@@ -146,7 +153,7 @@ class DBManager:
                 old_rating = current['rating']
                 attempts = current.get('attempts', 0) or 0
             else:
-                old_rating = 1200
+                old_rating = DEFAULT_RATING
                 attempts = 0
             
             # Calculate K-factor based on attempts
@@ -159,8 +166,24 @@ class DBManager:
             # Actual score: 1 for success, 0 for failure
             actual = 1 if success else 0
             
-            # New rating = old + K * (actual - expected)
-            change = round(k_factor * (actual - expected))
+            # MINIMUM CHANGE: Ensure meaningful rating changes even with mismatched puzzles
+            # This helps with small datasets where puzzle ratings don't match user ratings
+            raw_change = k_factor * (actual - expected)
+            
+            # Apply minimum change based on attempts (more provisional = higher minimum)
+            if attempts <= 5:
+                min_change = 50  # At least ±50 for first 5 attempts
+            elif attempts <= 15:
+                min_change = 30  # At least ±30 for next 10
+            else:
+                min_change = 15  # At least ±15 after that
+            
+            # Apply minimum, preserving direction
+            if actual == 1:  # Won
+                change = round(max(raw_change, min_change))
+            else:  # Lost
+                change = round(min(raw_change, -min_change))
+            
             new_rating = old_rating + change
             
             # Clamp rating to reasonable bounds
@@ -189,3 +212,53 @@ class DBManager:
         except Exception as e:
             print(f"Error in update_user_category_rating: {e}")
             return None
+
+    def reset_user_ratings(self, user_id, new_rating=None):
+        """
+        Resets all category ratings for a user to the default rating.
+        Also resets attempt counts to 0.
+        Returns True on success, False on failure.
+        """
+        if not self.client or not user_id:
+            return False
+        
+        reset_rating = new_rating if new_rating is not None else DEFAULT_RATING
+        
+        try:
+            # Delete all existing ratings for this user
+            self.client.table('user_category_ratings').delete().eq('user_id', user_id).execute()
+            print(f"Reset ratings for user {user_id} to {reset_rating}")
+            return True
+        except Exception as e:
+            print(f"Error in reset_user_ratings: {e}")
+            return False
+
+    def reset_all_user_ratings(self, new_rating=None):
+        """
+        Resets ALL users' category ratings to the default rating.
+        Use with caution - this affects all users!
+        Returns number of users affected.
+        """
+        if not self.client:
+            return 0
+        
+        reset_rating = new_rating if new_rating is not None else DEFAULT_RATING
+        
+        try:
+            # Get all unique user_ids from ratings table
+            response = self.client.table('user_category_ratings').select('user_id').execute()
+            if not response.data:
+                return 0
+            
+            # Get unique user IDs
+            user_ids = set(row['user_id'] for row in response.data)
+            
+            # Delete ratings for each user
+            for user_id in user_ids:
+                self.client.table('user_category_ratings').delete().eq('user_id', user_id).execute()
+            
+            print(f"Reset ratings for {len(user_ids)} users to {reset_rating}")
+            return len(user_ids)
+        except Exception as e:
+            print(f"Error in reset_all_user_ratings: {e}")
+            return 0

@@ -9,3 +9,14 @@ venv/
 .DS_Store
 .vscode/
 
+# Ignore secrets and local config
+.env
+
+# Ignore backup files
+*.backup
+*.backup.gz
+
+# Ignore temp/generated files
+all_code.txt
+all_python_code.txt
+temp_*.html

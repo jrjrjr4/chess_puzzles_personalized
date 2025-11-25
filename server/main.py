@@ -14,14 +14,17 @@ puzzles = load_puzzles()
 db_manager = DBManager()
 
 
+DEFAULT_RATING = 1600  # Starting rating for all categories
+
+
 def calculate_overall_rating(stored_ratings):
     """
     Calculate overall rating consistently across the app.
-    Always uses all 10 tracked themes, defaulting to 1200 for missing ones.
+    Always uses all 10 tracked themes, defaulting to DEFAULT_RATING for missing ones.
     """
     total = 0
     for theme_key in TRACKED_THEMES.keys():
-        total += stored_ratings.get(theme_key, 1200)
+        total += stored_ratings.get(theme_key, DEFAULT_RATING)
     return total // len(TRACKED_THEMES)
 
 
@@ -32,7 +35,7 @@ def get_all_user_ratings(stored_ratings):
     """
     user_ratings = {}
     for theme_key, display_name in TRACKED_THEMES.items():
-        user_ratings[display_name] = stored_ratings.get(theme_key, 1200)
+        user_ratings[display_name] = stored_ratings.get(theme_key, DEFAULT_RATING)
     return user_ratings
 
 
@@ -176,7 +179,7 @@ def stats():
     # Build full list with all 10 categories (using display names)
     all_ratings = []
     for theme_key, display_name in TRACKED_THEMES.items():
-        rating = stored_ratings.get(theme_key, 1200)
+        rating = stored_ratings.get(theme_key, DEFAULT_RATING)
         all_ratings.append((display_name, rating))
     
     # Sort by rating (lowest first - weaknesses)
@@ -189,6 +192,43 @@ def stats():
                          user=user, 
                          category_ratings=sorted_ratings,
                          overall_rating=overall_rating)
+
+
+@app.route('/api/reset-ratings', methods=['POST'])
+def reset_ratings():
+    """Reset current user's ratings to default (1600)."""
+    user = session.get('user')
+    if not user or 'db_id' not in user:
+        return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+    
+    success = db_manager.reset_user_ratings(user['db_id'])
+    if success:
+        return jsonify({
+            'status': 'success', 
+            'message': f'Ratings reset to {DEFAULT_RATING}',
+            'new_rating': DEFAULT_RATING
+        })
+    else:
+        return jsonify({'status': 'error', 'message': 'Failed to reset ratings'}), 500
+
+
+@app.route('/api/admin/reset-all-ratings', methods=['POST'])
+def admin_reset_all_ratings():
+    """Admin endpoint to reset ALL users' ratings. Use with caution!"""
+    # Simple admin check - in production you'd want proper auth
+    admin_key = request.headers.get('X-Admin-Key')
+    expected_key = os.environ.get('ADMIN_KEY', 'dev-admin-key')
+    
+    if admin_key != expected_key:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+    
+    count = db_manager.reset_all_user_ratings()
+    return jsonify({
+        'status': 'success',
+        'message': f'Reset ratings for {count} users to {DEFAULT_RATING}',
+        'users_affected': count,
+        'new_rating': DEFAULT_RATING
+    })
 
 
 if __name__ == '__main__':
