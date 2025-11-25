@@ -39,12 +39,45 @@ class DBManager:
             new_user = {
                 'lichess_id': lichess_id,
                 'lichess_username': username,
+                'provider': 'lichess',
             }
             response = self.client.table('users').insert(new_user).execute()
             if response.data:
                 return response.data[0]
         except Exception as e:
             print(f"Error in get_or_create_user: {e}")
+            return None
+
+    def get_or_create_google_user(self, google_user_data):
+        """
+        Checks if a user exists by google_id, creates them if not.
+        Returns the user record.
+        """
+        if not self.client:
+            return None
+
+        google_id = google_user_data.get('sub')  # Google's unique user ID
+        email = google_user_data.get('email')
+        name = google_user_data.get('name', email)
+
+        try:
+            # Check if user exists
+            response = self.client.table('users').select("*").eq('google_id', google_id).execute()
+            if response.data:
+                return response.data[0]
+
+            # Create new user
+            new_user = {
+                'google_id': google_id,
+                'google_email': email,
+                'google_name': name,
+                'provider': 'google',
+            }
+            response = self.client.table('users').insert(new_user).execute()
+            if response.data:
+                return response.data[0]
+        except Exception as e:
+            print(f"Error in get_or_create_google_user: {e}")
             return None
 
     def save_puzzle_attempt(self, user_id, puzzle_id, success):

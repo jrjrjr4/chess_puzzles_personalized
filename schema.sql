@@ -1,12 +1,28 @@
 -- Run this in the Supabase SQL Editor
 
--- Create users table
+-- Create users table (supports both Lichess and Google OAuth)
 create table public.users (
   id uuid default gen_random_uuid() primary key,
-  lichess_id text unique not null,
-  lichess_username text not null,
+  lichess_id text unique,  -- NULL for Google users
+  lichess_username text,   -- NULL for Google users
+  google_id text unique,   -- NULL for Lichess users
+  google_email text,       -- NULL for Lichess users
+  google_name text,        -- NULL for Lichess users
+  provider text not null default 'lichess',  -- 'lichess' or 'google'
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- Add constraint to ensure at least one OAuth ID is present
+-- alter table public.users add constraint users_oauth_check 
+--   check (lichess_id is not null or google_id is not null);
+
+-- Migration for existing tables (run if you already have a users table):
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_id text UNIQUE;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_email text;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_name text;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS provider text DEFAULT 'lichess';
+-- ALTER TABLE public.users ALTER COLUMN lichess_id DROP NOT NULL;
+-- ALTER TABLE public.users ALTER COLUMN lichess_username DROP NOT NULL;
 
 -- Create puzzle_attempts table
 create table public.puzzle_attempts (

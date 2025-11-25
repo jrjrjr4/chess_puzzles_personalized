@@ -2,7 +2,7 @@
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 from puzzle_manager import load_puzzles, get_random_puzzle, TRACKED_THEMES, get_tracked_themes_for_puzzle, get_theme_display_name
 from db_manager import DBManager
-from user_manager import UserManager
+from user_manager import UserManager, GoogleOAuth
 import os
 import secrets
 from dotenv import load_dotenv
@@ -20,6 +20,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Initialize managers first
 db_manager = DBManager()
 user_manager = UserManager()
+google_oauth = GoogleOAuth()
 
 # Load puzzles - tries Supabase first, falls back to CSV
 puzzles = load_puzzles(db_manager)
@@ -53,7 +54,8 @@ def get_all_user_ratings(stored_ratings):
 @app.route('/')
 def index():
     user = session.get('user')
-    return render_template('index.html', user=user)
+    google_enabled = google_oauth.is_configured()
+    return render_template('index.html', user=user, google_enabled=google_enabled)
 
 
 @app.route('/login')
@@ -144,11 +146,76 @@ def oauth_callback():
 def logout():
     """Logout user and optionally revoke Lichess token."""
     user = session.get('user')
-    if user and user.get('access_token'):
-        # Revoke the Lichess token
+    if user and user.get('access_token') and user.get('provider') != 'google':
+        # Revoke the Lichess token (Google tokens don't need revocation for this app)
         user_manager.revoke_token(user['access_token'])
     
     session.pop('user', None)
+    return redirect(url_for('index'))
+
+
+# ==================== GOOGLE OAUTH ROUTES ====================
+
+@app.route('/login/google')
+def google_login():
+    """Redirect to Google OAuth login."""
+    if not google_oauth.is_configured():
+        return render_template('error.html', error="Google login is not configured."), 500
+    
+    # Generate state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    session['google_oauth_state'] = state
+    
+    login_url = google_oauth.get_login_url(state)
+    return redirect(login_url)
+
+
+@app.route('/callback/google')
+def google_callback():
+    """Handle OAuth callback from Google."""
+    # Check for errors
+    error = request.args.get('error')
+    if error:
+        error_desc = request.args.get('error_description', 'Unknown error')
+        return render_template('error.html', error=f"Google login failed: {error_desc}"), 400
+    
+    # Verify state to prevent CSRF
+    state = request.args.get('state')
+    stored_state = session.get('google_oauth_state')
+    
+    if not state or state != stored_state:
+        if not stored_state:
+            return render_template('error.html', error="Session expired or cookies blocked. Please enable cookies and try logging in again."), 400
+        return render_template('error.html', error="Invalid state parameter. Please try logging in again."), 400
+    
+    session.pop('google_oauth_state', None)
+    
+    # Get the authorization code
+    code = request.args.get('code')
+    if not code:
+        return render_template('error.html', error="No authorization code received from Google."), 400
+    
+    # Exchange code for user info
+    google_user = google_oauth.handle_callback(code)
+    if not google_user:
+        return render_template('error.html', error="Failed to get user info from Google."), 400
+    
+    # Create or get user in our database
+    db_user = db_manager.get_or_create_google_user(google_user)
+    
+    # Store user in session
+    user_data = {
+        'id': google_user.get('sub'),  # Google's unique user ID
+        'username': google_user.get('name', google_user.get('email', 'Google User')),
+        'email': google_user.get('email'),
+        'picture': google_user.get('picture'),
+        'provider': 'google',
+    }
+    if db_user:
+        user_data['db_id'] = db_user['id']
+    
+    session['user'] = user_data
+    
     return redirect(url_for('index'))
 
 

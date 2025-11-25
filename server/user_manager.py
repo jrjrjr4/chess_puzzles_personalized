@@ -4,6 +4,73 @@ import hashlib
 import base64
 import requests
 import urllib.parse
+from authlib.integrations.requests_client import OAuth2Session
+
+
+class GoogleOAuth:
+    """Handles Google OAuth 2.0 authentication."""
+    
+    def __init__(self):
+        self.client_id = os.environ.get('GOOGLE_CLIENT_ID')
+        self.client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+        base_url = os.environ.get('BASE_URL', 'http://localhost:5000')
+        self.redirect_uri = f'{base_url}/callback/google'
+        
+        self.authorization_endpoint = 'https://accounts.google.com/o/oauth2/v2/auth'
+        self.token_endpoint = 'https://oauth2.googleapis.com/token'
+        self.userinfo_endpoint = 'https://www.googleapis.com/oauth2/v3/userinfo'
+    
+    def is_configured(self):
+        """Check if Google OAuth is properly configured."""
+        return bool(self.client_id and self.client_secret)
+    
+    def get_login_url(self, state):
+        """Generate the Google OAuth login URL."""
+        if not self.is_configured():
+            return None
+        
+        session = OAuth2Session(
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            redirect_uri=self.redirect_uri,
+            scope='openid email profile'
+        )
+        
+        uri, _ = session.create_authorization_url(
+            self.authorization_endpoint,
+            state=state
+        )
+        return uri
+    
+    def handle_callback(self, code):
+        """Exchange authorization code for tokens and get user info."""
+        if not self.is_configured():
+            return None
+        
+        try:
+            session = OAuth2Session(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                redirect_uri=self.redirect_uri
+            )
+            
+            # Exchange code for token
+            token = session.fetch_token(
+                self.token_endpoint,
+                code=code
+            )
+            
+            # Get user info
+            resp = session.get(self.userinfo_endpoint)
+            if resp.status_code == 200:
+                return resp.json()
+            
+            print(f"Failed to get Google user info: {resp.status_code}")
+            return None
+            
+        except Exception as e:
+            print(f"Google OAuth error: {e}")
+            return None
 
 
 class UserManager:
