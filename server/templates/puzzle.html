@@ -32,6 +32,11 @@
       <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-primary">
         <i class="fas fa-forward"></i> Next Puzzle
       </a>
+      {% if user %}
+      <button id="reset-ratings-btn" class="btn btn-danger-outline" onclick="resetRatings()">
+        <i class="fas fa-undo"></i> Reset Ratings (Testing)
+      </button>
+      {% endif %}
     </div>
 
     <!-- All category ratings - always visible -->
@@ -171,5 +176,43 @@
 .rating-down {
   color: var(--danger-color);
 }
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.btn-danger-outline:hover {
+  background: var(--danger-color);
+  color: white;
+}
 </style>
+
+<script>
+function resetRatings() {
+  if (!confirm('Reset all your ratings to 1600? This is for testing purposes.')) {
+    return;
+  }
+  
+  fetch('/api/reset-ratings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status === 'success') {
+      alert('Ratings reset! Refreshing page...');
+      window.location.reload();
+    } else {
+      alert('Failed to reset: ' + data.message);
+    }
+  })
+  .catch(err => {
+    alert('Error: ' + err);
+  });
+}
+</script>
 {% endblock %}

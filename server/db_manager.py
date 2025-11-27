@@ -145,29 +145,29 @@ class DBManager:
     def calculate_k_factor(self, attempts):
         """
         Calculate K-factor based on number of attempts.
-        Much higher K-factors for faster convergence with 10 categories.
-        - 0 attempts: K = 250 (first attempt, massive swing to quickly find level)
-        - 1-2 attempts: K = 200
-        - 3-5 attempts: K = 150
-        - 6-10 attempts: K = 100
-        - 11-20 attempts: K = 60
-        - 21-35 attempts: K = 40
-        - 35+ attempts: K = 25 (established rating, still responsive)
+        Very high K-factors for fast rating changes - good for testing and quick adaptation.
+        - 0 attempts: K = 400 (first attempt, massive swing)
+        - 1-2 attempts: K = 350
+        - 3-5 attempts: K = 300
+        - 6-10 attempts: K = 200
+        - 11-20 attempts: K = 120
+        - 21-35 attempts: K = 80
+        - 35+ attempts: K = 50 (established but still responsive)
         """
         if attempts <= 0:
-            return 250
+            return 400
         elif attempts <= 2:
-            return 200
+            return 350
         elif attempts <= 5:
-            return 150
+            return 300
         elif attempts <= 10:
-            return 100
+            return 200
         elif attempts <= 20:
-            return 60
+            return 120
         elif attempts <= 35:
-            return 40
+            return 80
         else:
-            return 25
+            return 50
 
     def update_user_category_rating(self, user_id, category, success, puzzle_rating=1600):
         """
@@ -204,12 +204,13 @@ class DBManager:
             raw_change = k_factor * (actual - expected)
             
             # Apply minimum change based on attempts (more provisional = higher minimum)
+            # Increased minimums for faster rating changes
             if attempts <= 5:
-                min_change = 50  # At least ±50 for first 5 attempts
+                min_change = 80  # At least ±80 for first 5 attempts
             elif attempts <= 15:
-                min_change = 30  # At least ±30 for next 10
+                min_change = 50  # At least ±50 for next 10
             else:
-                min_change = 15  # At least ±15 after that
+                min_change = 30  # At least ±30 after that
             
             # Apply minimum, preserving direction
             if actual == 1:  # Won
@@ -246,9 +247,90 @@ class DBManager:
             print(f"Error in update_user_category_rating: {e}")
             return None
 
+    def get_user_overall_rating(self, user_id):
+        """Get the user's overall rating and attempts count."""
+        if not self.client or not user_id:
+            return {'rating': DEFAULT_RATING, 'attempts': 0}
+        
+        try:
+            response = self.client.table('user_overall_rating').select("*").eq('user_id', user_id).execute()
+            if response.data:
+                return {
+                    'rating': response.data[0]['rating'],
+                    'attempts': response.data[0].get('attempts', 0) or 0
+                }
+            return {'rating': DEFAULT_RATING, 'attempts': 0}
+        except Exception as e:
+            print(f"Error in get_user_overall_rating: {e}")
+            return {'rating': DEFAULT_RATING, 'attempts': 0}
+
+    def update_user_overall_rating(self, user_id, success, puzzle_rating=1600):
+        """
+        Updates the user's overall rating using the same Elo system as categories.
+        Returns dict with old_rating, new_rating, change, attempts, k_factor.
+        """
+        if not self.client or not user_id:
+            return None
+        
+        try:
+            # Get current overall rating data
+            current_data = self.get_user_overall_rating(user_id)
+            old_rating = current_data['rating']
+            attempts = current_data['attempts']
+            
+            # Calculate K-factor based on attempts (same as categories)
+            k_factor = self.calculate_k_factor(attempts)
+            
+            # Calculate expected score (Elo formula)
+            expected = 1 / (1 + 10 ** ((puzzle_rating - old_rating) / 400))
+            
+            # Actual score: 1 for success, 0 for failure
+            actual = 1 if success else 0
+            
+            # Calculate raw change
+            raw_change = k_factor * (actual - expected)
+            
+            # Apply minimum change based on attempts
+            if attempts <= 5:
+                min_change = 80
+            elif attempts <= 15:
+                min_change = 50
+            else:
+                min_change = 30
+            
+            # Apply minimum, preserving direction
+            if actual == 1:
+                change = round(max(raw_change, min_change))
+            else:
+                change = round(min(raw_change, -min_change))
+            
+            new_rating = old_rating + change
+            new_rating = max(400, min(2800, new_rating))
+            new_attempts = attempts + 1
+            
+            # Upsert the data
+            data = {
+                'user_id': user_id,
+                'rating': new_rating,
+                'attempts': new_attempts,
+                'updated_at': 'now()'
+            }
+            self.client.table('user_overall_rating').upsert(data, on_conflict='user_id').execute()
+            
+            return {
+                'old_rating': old_rating,
+                'new_rating': new_rating,
+                'change': change,
+                'attempts': new_attempts,
+                'k_factor': k_factor
+            }
+        except Exception as e:
+            print(f"Error in update_user_overall_rating: {e}")
+            return None
+
     def reset_user_ratings(self, user_id, new_rating=None):
         """
-        Resets all category ratings for a user to the default rating.
+        Resets all category ratings AND overall rating for a user.
         Also resets attempt counts to 0.
         Returns True on success, False on failure.
         """
@@ -258,8 +340,10 @@ class DBManager:
         reset_rating = new_rating if new_rating is not None else DEFAULT_RATING
         
         try:
-            # Delete all existing ratings for this user
+            # Delete all existing category ratings for this user
             self.client.table('user_category_ratings').delete().eq('user_id', user_id).execute()
+            # Delete overall rating for this user
+            self.client.table('user_overall_rating').delete().eq('user_id', user_id).execute()
             print(f"Reset ratings for user {user_id} to {reset_rating}")
             return True
         except Exception as e:

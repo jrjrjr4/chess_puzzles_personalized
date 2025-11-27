@@ -29,15 +29,15 @@ puzzles = load_puzzles(db_manager)
 DEFAULT_RATING = 1600  # Starting rating for all categories
 
 
-def calculate_overall_rating(stored_ratings):
+def get_overall_rating(user_id):
     """
-    Calculate overall rating consistently across the app.
-    Always uses all 10 tracked themes, defaulting to DEFAULT_RATING for missing ones.
+    Get the user's independent overall rating from the database.
+    This is a separate rating that updates with each puzzle using Elo.
     """
-    total = 0
-    for theme_key in TRACKED_THEMES.keys():
-        total += stored_ratings.get(theme_key, DEFAULT_RATING)
-    return total // len(TRACKED_THEMES)
+    if not user_id:
+        return DEFAULT_RATING
+    data = db_manager.get_user_overall_rating(user_id)
+    return data['rating']
 
 
 def get_all_user_ratings(stored_ratings):
@@ -128,14 +128,16 @@ def oauth_callback():
     # Create or get user in our database
     db_user = db_manager.get_or_create_user(lichess_user)
     
+    if not db_user:
+        return render_template('error.html', error="Failed to create user account. Please try again later."), 500
+    
     # Store user in session
     user_data = {
         'id': lichess_user.get('id'),
         'username': lichess_user.get('username'),
         'access_token': access_token,  # Store for potential API calls or logout
+        'db_id': db_user['id']
     }
-    if db_user:
-        user_data['db_id'] = db_user['id']
     
     session['user'] = user_data
     
@@ -203,6 +205,9 @@ def google_callback():
     # Create or get user in our database
     db_user = db_manager.get_or_create_google_user(google_user)
     
+    if not db_user:
+        return render_template('error.html', error="Failed to create user account. Please try again later."), 500
+    
     # Store user in session
     user_data = {
         'id': google_user.get('sub'),  # Google's unique user ID
@@ -210,9 +215,8 @@ def google_callback():
         'email': google_user.get('email'),
         'picture': google_user.get('picture'),
         'provider': 'google',
+        'db_id': db_user['id']
     }
-    if db_user:
-        user_data['db_id'] = db_user['id']
     
     session['user'] = user_data
     
@@ -266,14 +270,29 @@ def record_attempt():
                     'k_factor': result['k_factor']
                 })
     
-    # Calculate overall rating consistently (using all 10 categories)
-    updated_ratings = db_manager.get_user_category_ratings(user['db_id'])
-    overall_rating = calculate_overall_rating(updated_ratings)
+    # Update overall rating independently (its own Elo rating)
+    overall_result = db_manager.update_user_overall_rating(
+        user['db_id'],
+        success,
+        puzzle_rating
+    )
+    
+    overall_rating = DEFAULT_RATING
+    overall_change = None
+    if overall_result:
+        overall_rating = overall_result['new_rating']
+        overall_change = {
+            'old_rating': overall_result['old_rating'],
+            'new_rating': overall_result['new_rating'],
+            'change': overall_result['change'],
+            'k_factor': overall_result['k_factor']
+        }
             
     return jsonify({
         'status': 'success',
         'rating_changes': rating_changes,
-        'overall_rating': overall_rating
+        'overall_rating': overall_rating,
+        'overall_change': overall_change
     })
 
 
@@ -285,14 +304,13 @@ def random_puzzle_view():
     
     # Get stored ratings from DB
     stored_ratings = {}
+    overall_rating = DEFAULT_RATING
     if user and 'db_id' in user:
         stored_ratings = db_manager.get_user_category_ratings(user['db_id'])
+        overall_rating = get_overall_rating(user['db_id'])
     
     # Build ratings dict with all 10 categories
     user_ratings = get_all_user_ratings(stored_ratings)
-    
-    # Calculate overall rating consistently
-    overall_rating = calculate_overall_rating(stored_ratings)
     
     # Select puzzle
     puzzle = None
@@ -328,6 +346,7 @@ def stats():
     
     # Get stored ratings from DB
     stored_ratings = db_manager.get_user_category_ratings(user['db_id'])
+    overall_rating = get_overall_rating(user['db_id'])
     
     # Build full list with all 10 categories (using display names)
     all_ratings = []
@@ -337,9 +356,6 @@ def stats():
     
     # Sort by rating (lowest first - weaknesses)
     sorted_ratings = sorted(all_ratings, key=lambda x: x[1])
-    
-    # Calculate overall rating consistently
-    overall_rating = calculate_overall_rating(stored_ratings)
     
     return render_template('stats.html', 
                          user=user, 
