@@ -20,6 +20,7 @@ venv/
 all_code.txt
 all_python_code.txt
 temp_*.html
+flask*.log
 
 # Ignore large puzzle data files (keep locally, not in git)
 data/filtered_puzzles.csv
