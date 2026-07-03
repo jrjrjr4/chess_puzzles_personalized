@@ -29,6 +29,12 @@ puzzles = load_puzzles(db_manager)
 DEFAULT_RATING = 1600  # Starting rating for all categories
 
 
+def calculate_overall_rating(stored_ratings):
+    """Calculate average rating across tracked categories, filling missing values."""
+    ratings = [stored_ratings.get(theme, DEFAULT_RATING) for theme in TRACKED_THEMES]
+    return sum(ratings) // len(ratings)
+
+
 def get_overall_rating(user_id):
     """
     Get the user's independent overall rating from the database.
@@ -248,6 +254,7 @@ def record_attempt():
     # Find the puzzle
     puzzle = next((p for p in puzzles if str(p['id']) == puzzle_id), None)
     rating_changes = []
+    puzzle_rating = DEFAULT_RATING
     
     if puzzle:
         tracked_themes = get_tracked_themes_for_puzzle(puzzle['themes'])
@@ -279,7 +286,7 @@ def record_attempt():
     
     overall_rating = DEFAULT_RATING
     overall_change = None
-    if overall_result:
+    if isinstance(overall_result, dict):
         overall_rating = overall_result['new_rating']
         overall_change = {
             'old_rating': overall_result['old_rating'],

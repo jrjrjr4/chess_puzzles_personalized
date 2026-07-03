@@ -15,6 +15,9 @@
         </a>
         {% else %}
         <div class="login-options">
+            <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-lg btn-primary">
+                <i class="fas fa-play"></i> Train without login
+            </a>
             <a href="{{ url_for('login') }}" class="btn btn-lg btn-lichess">
                 <svg class="lichess-logo" viewBox="0 0 50 50" width="22" height="22">
                   <path fill="currentColor" d="M11.25 0A11.25 11.25 0 000 11.25v27.5A11.25 11.25 0 0011.25 50h27.5A11.25 11.25 0 0050 38.75v-27.5A11.25 11.25 0 0038.75 0h-27.5zm6.42 9.58a1.67 1.67 0 011.66 1.67v5.42h5.42a1.67 1.67 0 010 3.33h-5.42v5.42a1.67 1.67 0 01-3.33 0V20h-5.42a1.67 1.67 0 010-3.33H16V11.25a1.67 1.67 0 011.67-1.67zm14.58 0a1.67 1.67 0 011.67 1.67v15.42a1.67 1.67 0 01-3.34 0V11.25a1.67 1.67 0 011.67-1.67zm0 20a1.67 1.67 0 011.67 1.67v5.42a1.67 1.67 0 01-3.34 0v-5.42a1.67 1.67 0 011.67-1.67z"/>

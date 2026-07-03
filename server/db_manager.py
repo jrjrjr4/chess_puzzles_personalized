@@ -145,29 +145,28 @@ class DBManager:
     def calculate_k_factor(self, attempts):
         """
         Calculate K-factor based on number of attempts.
-        Very high K-factors for fast rating changes - good for testing and quick adaptation.
-        - 0 attempts: K = 400 (first attempt, massive swing)
-        - 1-2 attempts: K = 350
-        - 3-5 attempts: K = 300
-        - 6-10 attempts: K = 200
-        - 11-20 attempts: K = 120
-        - 21-35 attempts: K = 80
-        - 35+ attempts: K = 50 (established but still responsive)
+        - 0 attempts: K = 250
+        - 1-2 attempts: K = 200
+        - 3-5 attempts: K = 150
+        - 6-10 attempts: K = 100
+        - 11-20 attempts: K = 60
+        - 21-35 attempts: K = 40
+        - 35+ attempts: K = 25
         """
         if attempts <= 0:
-            return 400
+            return 250
         elif attempts <= 2:
-            return 350
-        elif attempts <= 5:
-            return 300
-        elif attempts <= 10:
             return 200
+        elif attempts <= 5:
+            return 150
+        elif attempts <= 10:
+            return 100
         elif attempts <= 20:
-            return 120
+            return 60
         elif attempts <= 35:
-            return 80
+            return 40
         else:
-            return 50
+            return 25
 
     def update_user_category_rating(self, user_id, category, success, puzzle_rating=1600):
         """
@@ -203,14 +202,12 @@ class DBManager:
             # This helps with small datasets where puzzle ratings don't match user ratings
             raw_change = k_factor * (actual - expected)
             
-            # Apply minimum change based on attempts (more provisional = higher minimum)
-            # Increased minimums for faster rating changes
             if attempts <= 5:
-                min_change = 80  # At least ±80 for first 5 attempts
+                min_change = 50
             elif attempts <= 15:
-                min_change = 50  # At least ±50 for next 10
+                min_change = 30
             else:
-                min_change = 30  # At least ±30 after that
+                min_change = 15
             
             # Apply minimum, preserving direction
             if actual == 1:  # Won
@@ -292,11 +289,11 @@ class DBManager:
             
             # Apply minimum change based on attempts
             if attempts <= 5:
-                min_change = 80
-            elif attempts <= 15:
                 min_change = 50
-            else:
+            elif attempts <= 15:
                 min_change = 30
+            else:
+                min_change = 15
             
             # Apply minimum, preserving direction
             if actual == 1:

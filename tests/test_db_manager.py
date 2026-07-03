@@ -372,7 +372,7 @@ class TestResetRatings:
         result = db_with_mock_client.reset_user_ratings('user-uuid')
         
         assert result == True
-        db_with_mock_client.client.table.return_value.delete.return_value.eq.return_value.execute.assert_called_once()
+        assert db_with_mock_client.client.table.return_value.delete.return_value.eq.return_value.execute.call_count == 2
     
     def test_reset_user_ratings_no_client(self):
         """Test reset returns False without client."""
