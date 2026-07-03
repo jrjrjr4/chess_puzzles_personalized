@@ -60,6 +60,17 @@ class TestUserManager(unittest.TestCase):
         
         self.assertIn('scope=', url)
 
+    def test_get_login_url_accepts_redirect_uri_override(self):
+        """Test that login URL can use the request-specific redirect URI."""
+        _, challenge = self.user_manager.generate_pkce_pair()
+        url = self.user_manager.get_login_url(
+            challenge,
+            'state',
+            redirect_uri='http://127.0.0.1:5000/callback'
+        )
+
+        self.assertIn('redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fcallback', url)
+
     @patch('server.user_manager.requests.post')
     def test_handle_callback_success(self, mock_post):
         """Test successful token exchange with PKCE."""
@@ -75,6 +86,24 @@ class TestUserManager(unittest.TestCase):
         # Verify the request was made with code_verifier
         call_args = mock_post.call_args
         self.assertIn('code_verifier', call_args.kwargs.get('data', call_args[1].get('data', {})))
+
+    @patch('server.user_manager.requests.post')
+    def test_handle_callback_accepts_redirect_uri_override(self, mock_post):
+        """Test token exchange uses the same request-specific redirect URI."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'access_token': 'fake_token'}
+        mock_post.return_value = mock_response
+
+        result = self.user_manager.handle_callback(
+            'fake_code',
+            'fake_verifier',
+            redirect_uri='http://127.0.0.1:5000/callback'
+        )
+
+        self.assertEqual(result, {'access_token': 'fake_token'})
+        data = mock_post.call_args.kwargs['data']
+        self.assertEqual(data['redirect_uri'], 'http://127.0.0.1:5000/callback')
 
     @patch('server.user_manager.requests.post')
     def test_handle_callback_failure(self, mock_post):

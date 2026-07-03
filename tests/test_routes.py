@@ -51,6 +51,16 @@ class TestLichessOAuthRoutes:
         with app_client.session_transaction() as sess:
             assert 'oauth_state' in sess
             assert 'oauth_code_verifier' in sess
+
+    def test_login_uses_request_host_for_redirect_uri(self, app_client, mock_user_manager):
+        """Test that login preserves the host used to start OAuth."""
+        app_client.get('/login', base_url='http://127.0.0.1:5000', follow_redirects=False)
+
+        mock_user_manager.get_login_url.assert_called_with(
+            'challenge123',
+            mock_user_manager.get_login_url.call_args.args[1],
+            redirect_uri='http://127.0.0.1:5000/callback'
+        )
     
     def test_callback_without_code(self, app_client):
         """Test callback without authorization code."""

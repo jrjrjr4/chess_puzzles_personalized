@@ -73,12 +73,15 @@ def login():
     # Generate state for CSRF protection
     state = secrets.token_urlsafe(32)
     
-    # Store in session for verification in callback
+    # Store in session for verification in callback. Use the actual host from
+    # the request so 127.0.0.1 and localhost do not lose the session cookie.
+    redirect_uri = url_for('oauth_callback', _external=True)
     session['oauth_code_verifier'] = code_verifier
     session['oauth_state'] = state
+    session['oauth_redirect_uri'] = redirect_uri
     
     # Redirect to Lichess
-    login_url = user_manager.get_login_url(code_challenge, state)
+    login_url = user_manager.get_login_url(code_challenge, state, redirect_uri=redirect_uri)
     return redirect(login_url)
 
 
@@ -118,9 +121,10 @@ def oauth_callback():
     code_verifier = session.pop('oauth_code_verifier', None)
     if not code_verifier:
         return render_template('error.html', error="Session expired. Please try logging in again."), 400
+    redirect_uri = session.pop('oauth_redirect_uri', user_manager.redirect_uri)
     
     # Exchange code for token
-    token_data = user_manager.handle_callback(code, code_verifier)
+    token_data = user_manager.handle_callback(code, code_verifier, redirect_uri=redirect_uri)
     if not token_data:
         return render_template('error.html', error="Failed to get access token from Lichess."), 400
     

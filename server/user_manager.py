@@ -101,7 +101,7 @@ class UserManager:
         
         return code_verifier, code_challenge
 
-    def get_login_url(self, code_challenge, state):
+    def get_login_url(self, code_challenge, state, redirect_uri=None):
         """
         Generates the Lichess OAuth login URL with PKCE.
         
@@ -112,7 +112,7 @@ class UserManager:
         params = {
             'response_type': 'code',
             'client_id': self.client_id,
-            'redirect_uri': self.redirect_uri,
+            'redirect_uri': redirect_uri or self.redirect_uri,
             'scope': 'preference:read',  # Minimal scope - just need to identify user
             'code_challenge_method': 'S256',
             'code_challenge': code_challenge,
@@ -120,7 +120,7 @@ class UserManager:
         }
         return f"{self.lichess_auth_url}?{urllib.parse.urlencode(params)}"
 
-    def handle_callback(self, code, code_verifier):
+    def handle_callback(self, code, code_verifier, redirect_uri=None):
         """
         Exchanges the authorization code for an access token using PKCE.
         
@@ -131,7 +131,7 @@ class UserManager:
         data = {
             'grant_type': 'authorization_code',
             'code': code,
-            'redirect_uri': self.redirect_uri,
+            'redirect_uri': redirect_uri or self.redirect_uri,
             'client_id': self.client_id,
             'code_verifier': code_verifier,
         }
