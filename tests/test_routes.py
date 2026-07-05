@@ -343,3 +343,18 @@ class TestAdminResetAPI:
         data = response.get_json()
         assert data['users_affected'] == 5
 
+
+
+class TestHealthRoute:
+    """Tests for the keepalive health endpoint."""
+
+    def test_health_returns_ok(self, app_client, mock_db_manager):
+        """Health endpoint reports status and puzzle count."""
+        with patch('server.main.db_manager', mock_db_manager):
+            response = app_client.get('/health')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['status'] == 'ok'
+        assert 'puzzles' in data
+        assert 'db' in data

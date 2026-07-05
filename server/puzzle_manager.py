@@ -30,24 +30,31 @@ def get_theme_display_name(theme):
 
 def load_puzzles(db_manager=None):
     """
-    Load puzzles from Supabase if available, otherwise fall back to CSV.
-    
+    Load puzzles from the bundled CSV if present, otherwise from Supabase.
+
+    CSV-first keeps startup fast (one file read instead of ~60 paginated
+    requests) and lets the app serve puzzles even when the Supabase
+    project is paused — the database is only required for accounts,
+    attempts and ratings.
+
     Args:
         db_manager: Optional DBManager instance for Supabase access
-    
+
     Returns:
         List of puzzle dictionaries
     """
-    # Try loading from Supabase first
+    puzzles = load_puzzles_from_csv()
+    if puzzles:
+        return puzzles
+
+    print("No local puzzle CSV, falling back to Supabase")
     if db_manager and db_manager.client:
         puzzles = db_manager.get_all_puzzles()
         if puzzles:
             print(f"Loaded {len(puzzles)} puzzles from Supabase")
             return puzzles
-        print("No puzzles in Supabase, falling back to CSV")
-    
-    # Fall back to CSV file
-    return load_puzzles_from_csv()
+
+    return []
 
 def load_puzzles_from_csv():
     """Load puzzles from the local CSV file."""

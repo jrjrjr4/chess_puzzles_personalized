@@ -22,5 +22,5 @@ all_python_code.txt
 temp_*.html
 flask*.log
 
-# Ignore large puzzle data files (keep locally, not in git)
-data/filtered_puzzles.csv
+# data/filtered_puzzles.csv is committed on purpose: the deployed app
+# serves puzzles from it (regenerate with scripts/filter_lichess_puzzles.py)

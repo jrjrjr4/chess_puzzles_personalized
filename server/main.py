@@ -1,5 +1,6 @@
 # server/main.py
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
+from werkzeug.middleware.proxy_fix import ProxyFix
 from puzzle_manager import load_puzzles, get_random_puzzle, TRACKED_THEMES, get_tracked_themes_for_puzzle, get_theme_display_name
 from db_manager import DBManager
 from user_manager import UserManager, GoogleOAuth
@@ -12,9 +13,14 @@ load_dotenv()
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'super-secret-key')
 
+# Behind a hosting proxy (Render etc.) trust X-Forwarded-Proto/Host so
+# OAuth redirect URIs come out as https://<real-host>. No-op locally.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 # Configure session cookies for OAuth compatibility
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cookies on OAuth redirects
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+# True in production (HTTPS) via env; False for local http development
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() in ('1', 'true', 'yes')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 # Initialize managers first
@@ -77,6 +83,20 @@ def get_all_user_ratings(stored_ratings):
     for theme_key, display_name in TRACKED_THEMES.items():
         user_ratings[display_name] = stored_ratings.get(theme_key, DEFAULT_RATING)
     return user_ratings
+
+
+@app.route('/health')
+def health():
+    """Keep-warm / keepalive target: cheap page that also touches Supabase
+    so the free-tier project registers activity and never auto-pauses."""
+    db_ok = False
+    if db_manager.client:
+        try:
+            db_manager.client.table('users').select('id', count='exact').limit(1).execute()
+            db_ok = True
+        except Exception as e:
+            print(f"Health check DB ping failed: {e}")
+    return jsonify({'status': 'ok', 'puzzles': len(puzzles), 'db': db_ok})
 
 
 @app.route('/')

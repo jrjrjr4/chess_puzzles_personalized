@@ -62,24 +62,26 @@ class TestTrackedThemes:
 class TestLoadPuzzles:
     """Tests for puzzle loading functionality."""
     
-    def test_load_puzzles_from_supabase(self, mock_db_manager, sample_puzzles):
-        """Test loading puzzles from Supabase when available."""
-        mock_db_manager.get_all_puzzles.return_value = sample_puzzles
-        
-        puzzles = load_puzzles(mock_db_manager)
-        
-        assert len(puzzles) == len(sample_puzzles)
-        mock_db_manager.get_all_puzzles.assert_called_once()
-    
-    def test_load_puzzles_fallback_to_csv(self, mock_db_manager):
-        """Test fallback to CSV when Supabase returns empty."""
-        mock_db_manager.get_all_puzzles.return_value = []
-        
+    def test_load_puzzles_prefers_csv(self, mock_db_manager):
+        """CSV is the primary source; Supabase isn't queried when it loads."""
         with patch('server.puzzle_manager.load_puzzles_from_csv') as mock_csv:
             mock_csv.return_value = [{'id': 'csv_puzzle'}]
             puzzles = load_puzzles(mock_db_manager)
-            
+
             mock_csv.assert_called_once()
+            mock_db_manager.get_all_puzzles.assert_not_called()
+            assert puzzles == [{'id': 'csv_puzzle'}]
+
+    def test_load_puzzles_fallback_to_supabase(self, mock_db_manager, sample_puzzles):
+        """Supabase is used when the local CSV is missing/empty."""
+        mock_db_manager.get_all_puzzles.return_value = sample_puzzles
+
+        with patch('server.puzzle_manager.load_puzzles_from_csv') as mock_csv:
+            mock_csv.return_value = []
+            puzzles = load_puzzles(mock_db_manager)
+
+            assert len(puzzles) == len(sample_puzzles)
+            mock_db_manager.get_all_puzzles.assert_called_once()
     
     def test_load_puzzles_no_db_manager(self):
         """Test loading puzzles when no DB manager provided."""
