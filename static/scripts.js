@@ -5,10 +5,10 @@ $(document).ready(function () {
 
     var $puzzleData = $('#puzzle-data');
     if ($puzzleData.length > 0) {
-        if (typeof Chessboard === 'function' && typeof Chess === 'function') {
+        if (typeof Chessground === 'function' && typeof Chess === 'function') {
             initPuzzle($puzzleData);
         } else {
-            console.error("Chessboard.js or Chess.js is not loaded!");
+            console.error("Chessground or Chess.js is not loaded!");
             $('#status-message').text("Error loading chess board. Please refresh.").css('color', 'red');
         }
     }
@@ -47,31 +47,64 @@ function initPuzzle($data) {
     var playerColorLetter = playerColor === 'white' ? 'w' : 'b';
     console.log("Player color:", playerColor);
 
-    var board = Chessboard('myBoard', {
-        position: fen,
-        orientation: playerColor,
-        draggable: true,
-        moveSpeed: 200,
-        snapSpeed: 50,
-        snapbackSpeed: 250,
-        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
-        onDragStart: onDragStart,
-        onDrop: onDrop,
-        onSnapEnd: onSnapEnd,
-        onSnapbackEnd: applyHighlights,
-        onMoveEnd: applyHighlights
-    });
-
     var currentMoveIndex = 0;
     var puzzleComplete = false;
     var attemptRecorded = false;
+    var lastMove = null; // [from, to] of the last accepted move
 
-    // Click-to-move selection state. Highlights are always re-derived from
-    // these vars by applyHighlights(), so chessboard.js redraws can't leave
-    // stale or missing highlight classes.
-    var selectedSquare = null;
-    var legalTargets = [];
-    var dragStartedOnSelected = false;
+    function isPlayersTurn() {
+        return !puzzleComplete && !game.game_over() && game.turn() === playerColorLetter;
+    }
+
+    function cgColor() {
+        return game.turn() === 'w' ? 'white' : 'black';
+    }
+
+    function computeDests() {
+        var dests = new Map();
+        game.SQUARES.forEach(function (s) {
+            var ms = game.moves({ square: s, verbose: true });
+            if (ms.length) {
+                dests.set(s, ms.map(function (m) { return m.to; }));
+            }
+        });
+        return dests;
+    }
+
+    var cg = Chessground(document.getElementById('board'), {
+        fen: fen,
+        orientation: playerColor,
+        turnColor: cgColor(),
+        coordinates: true,
+        animation: { enabled: true, duration: 200 },
+        highlight: { lastMove: true, check: true },
+        premovable: { enabled: false },
+        draggable: { enabled: true, showGhost: true },
+        selectable: { enabled: true },
+        movable: {
+            free: false,
+            color: playerColor,
+            dests: new Map(), // locked until the opponent's first move plays
+            showDests: true,
+            events: { after: onUserMove }
+        }
+    });
+
+    // chess.js is the source of truth; this pushes it to the board.
+    // cg.set() animates fen diffs, so it also handles opponent replies and
+    // wrong-move rollbacks.
+    function syncBoard() {
+        cg.set({
+            fen: game.fen(),
+            turnColor: cgColor(),
+            check: game.in_check(),
+            lastMove: lastMove || undefined,
+            movable: {
+                color: playerColor,
+                dests: isPlayersTurn() ? computeDests() : new Map()
+            }
+        });
+    }
 
     $('#status-message').text("Watch the opponent's move...");
 
@@ -80,62 +113,9 @@ function initPuzzle($data) {
         makeOpponentMove();
     }, 800);
 
-    function isPlayersTurn() {
-        return !puzzleComplete && !game.game_over() && game.turn() === playerColorLetter;
-    }
-
-    function selectSquare(square) {
-        selectedSquare = square;
-        legalTargets = game.moves({ square: square, verbose: true })
-            .map(function (m) { return m.to; });
-        applyHighlights();
-    }
-
-    function clearSelection() {
-        selectedSquare = null;
-        legalTargets = [];
-        applyHighlights();
-    }
-
-    function applyHighlights() {
-        var $squares = $('#myBoard .square-55d63');
-        $squares.removeClass('highlight-selected highlight-legal highlight-capture');
-        if (!selectedSquare) return;
-        $('#myBoard .square-' + selectedSquare).addClass('highlight-selected');
-        legalTargets.forEach(function (target) {
-            var cls = game.get(target) ? 'highlight-capture' : 'highlight-legal';
-            $('#myBoard .square-' + target).addClass(cls);
-        });
-    }
-
-    function onDragStart(source, piece, position, orientation) {
-        // Don't allow moves if puzzle is complete or game is over
-        if (puzzleComplete) return false;
-        if (game.game_over()) return false;
-
-        // Only allow moving player's pieces
-        if (playerColor === 'white' && piece.search(/^b/) !== -1) return false;
-        if (playerColor === 'black' && piece.search(/^w/) !== -1) return false;
-
-        // Only allow moves on player's turn
-        if ((playerColor === 'white' && game.turn() !== 'w') ||
-            (playerColor === 'black' && game.turn() !== 'b')) {
-            return false;
-        }
-
-        // A plain click on one of the player's pieces never reaches the
-        // browser click handler (chessboard.js reparents the piece img into
-        // its drag element, so no click event fires on the square) — piece
-        // selection is handled entirely here and in onDrop's same-square
-        // branch. The flag distinguishes "first grab" (select) from
-        // "grabbing the already-selected piece" (deselect on release).
-        dragStartedOnSelected = (selectedSquare === source);
-        selectSquare(source);
-    }
-
-    // Shared by drag-and-drop and click-to-move.
-    // Returns 'illegal', 'wrong' or 'correct'; the board is only advanced
-    // (game state) here — callers decide how to sync the visual board.
+    // Shared move validator: applies the move to chess.js, compares against
+    // the solution, updates status and records the attempt.
+    // Returns 'illegal', 'wrong' or 'correct'.
     function handlePlayerMove(source, target) {
         // Try the move (always try queen promotion first for simplicity)
         var move = game.move({
@@ -192,54 +172,20 @@ function initPuzzle($data) {
         return 'wrong';
     }
 
-    function onDrop(source, target) {
-        // Releasing on the origin square is a click on the piece: toggle the
-        // selection rather than treating it as a move.
-        if (target === source) {
-            if (dragStartedOnSelected) clearSelection();
-            return 'snapback';
-        }
-        if (target === 'offboard') return 'snapback';
-
-        clearSelection();
-        var result = handlePlayerMove(source, target);
-        if (result !== 'correct') return 'snapback';
-    }
-
-    // Click-to-move: the piece hasn't physically moved yet, so on a correct
-    // move we animate the board to the new position ourselves.
-    function playClickMove(source, target) {
-        var result = handlePlayerMove(source, target);
+    // Called by chessground after the user makes a board-legal move
+    // (click-to-move or drag — dests guarantee legality).
+    function onUserMove(orig, dest) {
+        var result = handlePlayerMove(orig, dest);
         if (result === 'correct') {
-            board.position(game.fen());
+            lastMove = [orig, dest];
+            syncBoard(); // renders promotion, check ring; locks dests until reply
+            if (puzzleComplete) cg.stop();
+        } else {
+            // Wrong or illegal: chess.js was undone (or never changed), so this
+            // animates the piece back and restores the previous highlights.
+            syncBoard();
         }
     }
-
-    $('#myBoard').on('click', '.square-55d63', function () {
-        if (!isPlayersTurn()) return;
-        var square = $(this).attr('data-square');
-        if (!square) return;
-
-        if (selectedSquare) {
-            if (square === selectedSquare) {
-                clearSelection();
-                return;
-            }
-            if (legalTargets.indexOf(square) !== -1) {
-                var from = selectedSquare;
-                clearSelection();
-                playClickMove(from, square);
-                return;
-            }
-        }
-
-        var piece = game.get(square);
-        if (piece && piece.color === playerColorLetter) {
-            selectSquare(square);
-        } else {
-            clearSelection();
-        }
-    });
 
     function recordAttempt(success) {
         var puzzleId = $data.data('id');
@@ -310,14 +256,7 @@ function initPuzzle($data) {
         });
     }
 
-    function onSnapEnd() {
-        board.position(game.fen());
-        applyHighlights();
-    }
-
     function makeOpponentMove() {
-        clearSelection();
-
         if (currentMoveIndex >= movesList.length) {
             return;
         }
@@ -345,13 +284,15 @@ function initPuzzle($data) {
             return;
         }
 
-        board.position(game.fen());
+        lastMove = [from, to];
         currentMoveIndex++;
+        syncBoard();
 
         if (currentMoveIndex >= movesList.length) {
             $('#status-message').text("🎉 Puzzle Solved!")
                 .removeClass('status-error').addClass('status-success');
             puzzleComplete = true;
+            cg.stop();
         } else {
             $('#status-message').text("Your turn...")
                 .removeClass('status-success status-error');
@@ -361,8 +302,6 @@ function initPuzzle($data) {
     // Show Solution button
     $('#show-solution-btn').on('click', function () {
         if (currentMoveIndex < movesList.length && !puzzleComplete) {
-            clearSelection();
-
             var moveStr = movesList[currentMoveIndex];
             var from = moveStr.substring(0, 2);
             var to = moveStr.substring(2, 4);
@@ -374,8 +313,9 @@ function initPuzzle($data) {
             }
 
             game.move(moveObj);
-            board.position(game.fen());
+            lastMove = [from, to];
             currentMoveIndex++;
+            syncBoard();
 
             if (currentMoveIndex < movesList.length) {
                 // Play opponent's response
@@ -384,14 +324,13 @@ function initPuzzle($data) {
                 $('#status-message').text("Solution shown")
                     .removeClass('status-error status-success');
                 puzzleComplete = true;
+                cg.stop();
             }
         }
     });
 
-    // Handle window resize
+    // Handle window resize (keeps drag coordinates in sync)
     $(window).resize(function () {
-        // resize() rebuilds the square divs, dropping any highlight classes
-        board.resize();
-        applyHighlights();
+        cg.redrawAll();
     });
 }

@@ -12,8 +12,10 @@
 
   <!-- FontAwesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <!-- Chessboard CSS -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+  <!-- Chessground (lichess board) CSS: board frame, brown theme, cburnett pieces -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lichess-org/chessground@10.1.1/assets/chessground.base.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lichess-org/chessground@10.1.1/assets/chessground.brown.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lichess-org/chessground@10.1.1/assets/chessground.cburnett.css">
 </head>
 
 <body>
@@ -44,9 +46,14 @@
     {% block content %}{% endblock %}
   </main>
 
-  <!-- jQuery and Chessboard.js for the chess board visualization -->
+  <!-- jQuery for DOM plumbing -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+  <!-- Chessground ships as an ESM-only bundle; module scripts run before
+       DOMContentLoaded, so the global is set before scripts.js needs it -->
+  <script type="module">
+    import { Chessground } from 'https://cdn.jsdelivr.net/npm/@lichess-org/chessground@10.1.1/dist/chessground.min.js';
+    window.Chessground = Chessground;
+  </script>
   <!-- chess.js for move validation and game logic -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
