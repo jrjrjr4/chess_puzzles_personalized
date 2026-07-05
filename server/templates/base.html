@@ -4,22 +4,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chess Tactics Trainer</title>
+  <title>Chess Puzzle Trainer</title>
+  <!-- Linking our custom CSS file -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Google Fonts for a premium look -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Chessboard CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
 </head>
 
 <body>
   <header class="main-header">
-    <a class="logo" href="{{ url_for('index') }}" aria-label="Chess Tactics Trainer home">
-      <span class="logo-mark"><i class="fas fa-chess-knight"></i></span>
-      <span>Tactics Trainer</span>
-    </a>
+    <div class="logo">
+      <i class="fas fa-chess-knight"></i> PuzzleTrainer
+    </div>
     <nav>
       {% if user %}
-      <span class="user-info">{{ user.username }}</span>
+      <span class="user-info">Welcome, {{ user.username }}</span>
       <a href="{{ url_for('stats') }}" class="btn btn-secondary">
         <i class="fas fa-chart-bar"></i> Stats
       </a>

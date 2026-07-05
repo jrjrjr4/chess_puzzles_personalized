@@ -1,21 +1,20 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="home-shell">
-    <div class="home-copy">
-        <p class="eyebrow">Personal tactics training</p>
-        <h1>Train the positions that actually move your rating.</h1>
-        <p class="subtitle">Adaptive puzzle selection, category ratings, and fast board controls built for repeated practice.</p>
+<div class="hero-section">
+    <h1>Master Your Chess Tactics</h1>
+    <p class="subtitle">Train with personalized puzzles to improve your rating.</p>
 
-        <div class="action-buttons">
-            {% if user %}
-            <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-lg btn-primary">
-                <i class="fas fa-play"></i> Continue Training
-            </a>
-            <a href="{{ url_for('stats') }}" class="btn btn-lg btn-secondary">
-                <i class="fas fa-chart-bar"></i> View Stats
-            </a>
-            {% else %}
+    <div class="action-buttons">
+        {% if user %}
+        <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-lg btn-primary">
+            <i class="fas fa-play"></i> Continue Training
+        </a>
+        <a href="{{ url_for('stats') }}" class="btn btn-lg btn-secondary">
+            <i class="fas fa-chart-bar"></i> View Stats
+        </a>
+        {% else %}
+        <div class="login-options">
             <a href="{{ url_for('random_puzzle_view') }}" class="btn btn-lg btn-primary">
                 <i class="fas fa-play"></i> Train without login
             </a>
@@ -36,25 +35,12 @@
                 Login with Google
             </a>
             {% endif %}
-            {% endif %}
         </div>
+        {% endif %}
     </div>
 
-    <div class="home-preview" aria-hidden="true">
-        <div class="mini-board">
-            {% for i in range(64) %}
-            <span class="mini-square {% if (i + (i // 8)) % 2 == 0 %}light{% else %}dark{% endif %}"></span>
-            {% endfor %}
-            <span class="mini-piece white-queen">♕</span>
-            <span class="mini-piece black-king">♚</span>
-            <span class="mini-piece white-knight">♘</span>
-            <span class="mini-target one"></span>
-            <span class="mini-target two"></span>
-        </div>
-        <div class="preview-panel">
-            <span>Fork</span>
-            <strong>+42</strong>
-        </div>
-    </div>
-</section>
+    {% if not user %}
+    <p class="login-hint">Sign in with your Lichess account to track your progress!</p>
+    {% endif %}
+</div>
 {% endblock %}

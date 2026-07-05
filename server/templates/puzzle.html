@@ -1,35 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="puzzle-container">
-  <section class="training-board-panel">
-    <div class="board-toolbar">
-      <div>
-        <p class="eyebrow">Current puzzle</p>
-        <h1>Puzzle #{{ puzzle.id }}</h1>
-      </div>
-      <span class="rating-pill"><i class="fas fa-bolt"></i> {{ puzzle.rating }}</span>
-    </div>
+  <div class="board-wrapper">
+    <div id="myBoard" style="width: 600px"></div>
+  </div>
 
-    <div class="board-wrapper">
-      <div id="myBoard"></div>
-    </div>
-
-    <div class="move-helper">
-      <span><i class="fas fa-hand-pointer"></i> Click a piece to see legal moves</span>
-      <span><i class="fas fa-arrows-alt"></i> Drag moves still work</span>
-    </div>
-  </section>
-
-  <aside class="puzzle-sidebar">
-    <div class="status-card">
-      <div class="status-icon" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
-      <div>
-        <span class="status-label">Trainer</span>
-        <p id="status-message" class="status-text">Loading puzzle...</p>
+  <div class="puzzle-sidebar">
+    <div class="puzzle-header">
+      <div class="puzzle-meta">
+        <h2>Puzzle #{{ puzzle.id }}</h2>
+        <span class="badge rating-badge">Puzzle: {{ puzzle.rating }}</span>
       </div>
     </div>
+
+    <!-- This puzzle's tracked themes -->
+    {% if puzzle_tracked_themes %}
+    <div class="puzzle-themes">
+      <span class="themes-label">This puzzle:</span>
+      {% for theme in puzzle_tracked_themes %}
+      <span class="theme-tag active">{{ theme }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     <div class="puzzle-controls">
+      <p id="status-message" class="status-text">Loading puzzle...</p>
+      
       <button id="show-solution-btn" class="btn btn-secondary">
         <i class="fas fa-eye"></i> Show Solution
       </button>
@@ -43,20 +39,10 @@
       {% endif %}
     </div>
 
-    {% if puzzle_tracked_themes %}
-    <div class="puzzle-themes">
-      <span class="themes-label">Themes</span>
-      <div class="theme-list">
-        {% for theme in puzzle_tracked_themes %}
-        <span class="theme-tag active">{{ theme }}</span>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
+    <!-- All category ratings - always visible -->
     <div class="all-ratings">
       <div class="ratings-header">
-        <h2>Your Ratings</h2>
+        <h4>Your Ratings</h4>
         <div class="overall-badge">Overall: <span id="overall-rating-value">{{ overall_rating }}</span></div>
       </div>
       <div class="ratings-grid">
@@ -72,8 +58,138 @@
     <div id="puzzle-data" data-id="{{ puzzle.id }}" data-fen="{{ puzzle.fen }}"
       data-moves="{{ ' '.join(puzzle.moves) }}" style="display:none;">
     </div>
-  </aside>
+  </div>
 </div>
+
+<style>
+.puzzle-themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.themes-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-right: 0.5rem;
+}
+
+.theme-tag {
+  background-color: rgba(76, 175, 80, 0.2);
+  border: 1px solid var(--accent-color);
+  padding: 0.25rem 0.6rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
+.puzzle-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.all-ratings {
+  background-color: var(--bg-tertiary);
+  padding: 1rem;
+  border-radius: var(--border-radius);
+}
+
+.ratings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.ratings-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.overall-badge {
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+  padding: 0.3rem 0.7rem;
+  border-radius: 15px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ratings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.rating-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  transition: all 0.3s ease;
+}
+
+.rating-item.highlight {
+  background-color: rgba(76, 175, 80, 0.15);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.rating-item.updated {
+  animation: ratingPulse 0.5s ease;
+}
+
+@keyframes ratingPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); background-color: rgba(76, 175, 80, 0.3); }
+  100% { transform: scale(1); }
+}
+
+.cat-name {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.cat-rating {
+  font-weight: 600;
+  font-family: monospace;
+  min-width: 40px;
+  text-align: right;
+}
+
+.rating-up {
+  color: var(--accent-color);
+}
+
+.rating-down {
+  color: var(--danger-color);
+}
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.btn-danger-outline:hover {
+  background: var(--danger-color);
+  color: white;
+}
+</style>
 
 <script>
 function resetRatings() {
