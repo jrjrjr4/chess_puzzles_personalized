@@ -71,7 +71,7 @@ function initPuzzle($data) {
     // stale or missing highlight classes.
     var selectedSquare = null;
     var legalTargets = [];
-    var suppressNextDeselect = false;
+    var dragStartedOnSelected = false;
 
     $('#status-message').text("Watch the opponent's move...");
 
@@ -123,11 +123,13 @@ function initPuzzle($data) {
             return false;
         }
 
-        // A plain click on a piece also runs dragStart -> drop(same square) ->
-        // the browser click event. Selecting here shows legal-move hints on
-        // drag pickup; the flag lets the click handler tell "first click on
-        // this piece" (keep selection) from "second click" (deselect).
-        suppressNextDeselect = (selectedSquare !== source);
+        // A plain click on one of the player's pieces never reaches the
+        // browser click handler (chessboard.js reparents the piece img into
+        // its drag element, so no click event fires on the square) — piece
+        // selection is handled entirely here and in onDrop's same-square
+        // branch. The flag distinguishes "first grab" (select) from
+        // "grabbing the already-selected piece" (deselect on release).
+        dragStartedOnSelected = (selectedSquare === source);
         selectSquare(source);
     }
 
@@ -191,9 +193,13 @@ function initPuzzle($data) {
     }
 
     function onDrop(source, target) {
-        // Dropping back on the origin square is a click, not a move — keep the
-        // selection and let the click handler decide select vs deselect.
-        if (target === source || target === 'offboard') return 'snapback';
+        // Releasing on the origin square is a click on the piece: toggle the
+        // selection rather than treating it as a move.
+        if (target === source) {
+            if (dragStartedOnSelected) clearSelection();
+            return 'snapback';
+        }
+        if (target === 'offboard') return 'snapback';
 
         clearSelection();
         var result = handlePlayerMove(source, target);
@@ -216,11 +222,7 @@ function initPuzzle($data) {
 
         if (selectedSquare) {
             if (square === selectedSquare) {
-                if (suppressNextDeselect) {
-                    suppressNextDeselect = false;
-                } else {
-                    clearSelection();
-                }
+                clearSelection();
                 return;
             }
             if (legalTargets.indexOf(square) !== -1) {

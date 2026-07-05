@@ -93,6 +93,7 @@ body {
 
 /* Buttons */
 .btn {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -322,6 +323,10 @@ body {
 /* Chessboard Customization */
 .chessboard-63f37 {
   border: none !important;
+}
+
+#myBoard .board-b72b1 {
+  border: none;
 }
 
 /* Lichess-style board colors (#myBoard beats the chessboard.js class selectors,
