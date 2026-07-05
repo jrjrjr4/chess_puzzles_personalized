@@ -544,6 +544,16 @@ TOTAL                        599    106    82%
 
 ## Deployment
 
+### Render (current setup)
+
+The repo carries a `render.yaml` blueprint. Deploys run on Render's free tier:
+
+- **Build**: `pip install -r requirements.txt`; **start**: `gunicorn --chdir server main:app`.
+- **Puzzles are served from the committed `data/filtered_puzzles.csv`** (fast startup, works even if Supabase is paused). Supabase is only needed for login, attempts, and ratings — set `SUPABASE_URL` and `SUPABASE_KEY` on the service.
+- `SESSION_COOKIE_SECURE=true` and a generated `FLASK_SECRET_KEY` come from `render.yaml`; `ProxyFix` in `server/main.py` makes OAuth redirect URLs https behind Render's proxy.
+- **Keepalive**: `/health` runs a tiny Supabase query. An UptimeRobot monitor pings it every 5 minutes (keeps the free service warm AND keeps Supabase from auto-pausing); `.github/workflows/keepalive.yml` pings every 12h as backup (set the `APP_URL` repo variable).
+- Lichess login works on any host (PKCE, dynamic redirect). Google login requires adding the deployed callback URL in Google Cloud Console.
+
 ### Production Checklist
 
 1. **Set secure secret key**

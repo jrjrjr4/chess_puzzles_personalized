@@ -1,0 +1,26 @@
+name: Keepalive
+
+# Backup keepalive: pings the deployed app's /health endpoint, which runs a
+# tiny Supabase query so the free-tier project never auto-pauses (pauses
+# after ~7 days without API activity). UptimeRobot is the primary pinger;
+# this covers gaps if that monitor is ever removed.
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "APP_URL repo variable not set; skipping"
+            exit 0
+          fi
+          # Free Render services take ~1 min to wake, so be patient
+          curl -sf --retry 5 --retry-delay 20 --retry-all-errors --max-time 120 "$APP_URL/health"
