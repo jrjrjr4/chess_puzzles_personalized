@@ -4,6 +4,7 @@ $(document).ready(function () {
     console.log("Scripts loaded.");
 
     initThemeToggle();
+    initSoundToggle();
 
     var $puzzleData = $('#puzzle-data');
     if ($puzzleData.length > 0) {
@@ -39,6 +40,89 @@ function initThemeToggle() {
             localStorage.setItem('theme', dark ? 'light' : 'dark');
         } catch (e) {}
         renderIcon();
+    });
+
+    renderIcon();
+}
+
+// --- Sound effects: short synthesized tones, no audio files ---
+var audioCtx = null;
+
+function soundEnabled() {
+    try {
+        return localStorage.getItem('sound') !== 'off';
+    } catch (e) {
+        return true;
+    }
+}
+
+function getAudioCtx() {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!audioCtx) audioCtx = new Ctx();
+    // Browsers keep the context suspended until a user gesture; every play
+    // call here happens in response to a click/drag, so resume works
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+
+function playNotes(notes) {
+    if (!soundEnabled()) return;
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    var now = ctx.currentTime;
+    notes.forEach(function (n) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = n.type || 'sine';
+        osc.frequency.value = n.freq;
+        var t0 = now + (n.at || 0);
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(n.gain || 0.1, t0 + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + n.dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + n.dur + 0.05);
+    });
+}
+
+// Soft marimba-ish blip for a correct move
+function playCorrectSound() {
+    playNotes([
+        { freq: 660, dur: 0.12, gain: 0.10 },
+        { freq: 1320, dur: 0.08, gain: 0.03 }
+    ]);
+}
+
+// Gentle rising chime when the puzzle is solved
+function playSolveSound() {
+    playNotes([
+        { freq: 523.25, at: 0.00, dur: 0.18, gain: 0.09 },
+        { freq: 659.25, at: 0.09, dur: 0.18, gain: 0.09 },
+        { freq: 783.99, at: 0.18, dur: 0.30, gain: 0.10 }
+    ]);
+}
+
+// Quiet low thud for a wrong move
+function playWrongSound() {
+    playNotes([{ freq: 196, dur: 0.18, gain: 0.06, type: 'triangle' }]);
+}
+
+function initSoundToggle() {
+    var $btn = $('#sound-toggle');
+    if (!$btn.length) return;
+
+    function renderIcon() {
+        $btn.find('i').attr('class', soundEnabled() ? 'fas fa-volume-up' : 'fas fa-volume-mute');
+    }
+
+    $btn.on('click', function () {
+        try {
+            localStorage.setItem('sound', soundEnabled() ? 'off' : 'on');
+        } catch (e) {}
+        renderIcon();
+        if (soundEnabled()) playCorrectSound(); // audible preview
     });
 
     renderIcon();
@@ -178,6 +262,7 @@ function initPuzzle($data) {
                 $('#status-message').text("🎉 Puzzle Solved!")
                     .removeClass('status-error').addClass('status-success');
                 puzzleComplete = true;
+                playSolveSound();
                 if (!attemptRecorded) {
                     recordAttempt(true);
                     attemptRecorded = true;
@@ -186,6 +271,7 @@ function initPuzzle($data) {
                 // More moves to go
                 $('#status-message').text("Correct! Keep going...")
                     .removeClass('status-error').addClass('status-success');
+                playCorrectSound();
                 setTimeout(makeOpponentMove, 500);
             }
             return 'correct';
@@ -194,6 +280,7 @@ function initPuzzle($data) {
         // Wrong move
         $('#status-message').text("Incorrect move. Try again.")
             .removeClass('status-success').addClass('status-error');
+        playWrongSound();
         game.undo();
         if (!attemptRecorded) {
             recordAttempt(false);
