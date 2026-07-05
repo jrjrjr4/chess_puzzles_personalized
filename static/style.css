@@ -1,40 +1,44 @@
-/* 
+/*
   style.css
-  Premium Dark Theme for Chess Puzzle Trainer
+  Light lichess-style theme for Chess Puzzle Trainer
 */
 :root {
-  /* Color Palette - Dark Premium Theme */
-  --bg-primary: #121212;
-  /* Very dark gray for main background */
-  --bg-secondary: #1e1e1e;
-  /* Slightly lighter for cards/headers */
-  --bg-tertiary: #2d2d2d;
-  /* For inputs/hover states */
-  --text-primary: #ffffff;
-  /* White text */
-  --text-secondary: #b3b3b3;
-  /* Light gray for less important text */
-  --accent-color: #4CAF50;
-  /* Green for primary actions */
-  --accent-hover: #45a049;
-  /* Darker green for hover states */
-  --danger-color: #f44336;
+  /* Color Palette - Lichess Light */
+  --bg-primary: #edebe9;
+  /* Warm off-white page background */
+  --bg-secondary: #ffffff;
+  /* Cards and header */
+  --bg-tertiary: #f7f6f5;
+  /* Subtle fills and hover states */
+  --text-primary: #4d4d4d;
+  /* Dark gray text */
+  --text-secondary: #787878;
+  /* Muted gray for less important text */
+  --accent-color: #3893e8;
+  /* Lichess blue for primary actions */
+  --accent-hover: #1b78d0;
+  /* Darker blue for hover states */
+  --success-color: #629924;
+  /* Green for correct moves / positive changes */
+  --danger-color: #cc3333;
   /* Red for errors or danger actions */
   --lichess-color: #629924;
   /* Lichess brand green */
   --lichess-hover: #4d7a1c;
+  --border-color: #d9d9d9;
+  /* Hairline borders on cards and headers */
 
   /* Spacing and Layout */
   --spacing-unit: 8px;
-  --border-radius: 12px;
+  --border-radius: 5px;
 
   /* Typography */
   --font-family: 'Inter', sans-serif;
 
   /* Shadows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 body {
@@ -56,7 +60,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: var(--shadow-md);
+  border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -65,7 +69,7 @@ body {
 .logo {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--accent-color);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -104,38 +108,33 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+  background: var(--accent-color);
   color: white;
-  box-shadow: 0 4px 6px rgba(76, 175, 80, 0.3);
 }
 
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 8px rgba(76, 175, 80, 0.4);
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover {
-  background-color: #3d3d3d;
-  border-color: rgba(255, 255, 255, 0.2);
+  background-color: var(--bg-tertiary);
+  border-color: #c4c4c4;
 }
 
 /* Lichess Login Button */
 .btn-lichess {
-  background: linear-gradient(135deg, var(--lichess-color), var(--lichess-hover));
+  background: var(--lichess-color);
   color: white;
-  box-shadow: 0 4px 6px rgba(98, 153, 36, 0.3);
 }
 
 .btn-lichess:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 8px rgba(98, 153, 36, 0.4);
-  background: linear-gradient(135deg, #6fa82a, var(--lichess-color));
+  background: var(--lichess-hover);
 }
 
 .lichess-logo {
@@ -146,13 +145,10 @@ body {
 .btn-google {
   background: #ffffff;
   color: #444444;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   border: 1px solid #dadce0;
 }
 
 .btn-google:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
   background: #f8f9fa;
 }
 
@@ -188,9 +184,7 @@ body {
 .hero-section h1 {
   font-size: 3.5rem;
   margin-bottom: 1.5rem;
-  background: linear-gradient(to right, #fff, #b3b3b3);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
 }
 
 .subtitle {
@@ -227,7 +221,8 @@ body {
   background-color: var(--bg-secondary);
   padding: 1.5rem;
   border-radius: var(--border-radius);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   display: flex;
   justify-content: center;
 }
@@ -236,7 +231,8 @@ body {
   background-color: var(--bg-secondary);
   padding: 2rem;
   border-radius: var(--border-radius);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -255,16 +251,17 @@ body {
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .badge {
   background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   padding: 0.4rem 0.8rem;
   border-radius: 20px;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--accent-color);
+  color: var(--text-primary);
 }
 
 .status-text {
@@ -275,7 +272,7 @@ body {
 }
 
 .status-success {
-  color: var(--accent-color);
+  color: var(--success-color);
 }
 
 .status-error {
@@ -388,6 +385,11 @@ body {
   color: var(--accent-color);
 }
 
+.category-card,
+.error-message {
+  border: 1px solid var(--border-color);
+}
+
 .category-ratings {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -423,12 +425,12 @@ body {
 }
 
 .rating-up {
-  background-color: rgba(76, 175, 80, 0.2);
-  color: var(--accent-color);
+  background-color: rgba(98, 153, 36, 0.15);
+  color: var(--success-color);
 }
 
 .rating-down {
-  background-color: rgba(244, 67, 54, 0.2);
+  background-color: rgba(204, 51, 51, 0.12);
   color: var(--danger-color);
 }
 

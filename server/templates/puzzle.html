@@ -80,12 +80,12 @@
 }
 
 .theme-tag {
-  background-color: rgba(76, 175, 80, 0.2);
-  border: 1px solid var(--accent-color);
+  background-color: rgba(98, 153, 36, 0.12);
+  border: 1px solid rgba(98, 153, 36, 0.4);
   padding: 0.25rem 0.6rem;
   border-radius: 15px;
   font-size: 0.8rem;
-  color: var(--accent-color);
+  color: var(--success-color);
   font-weight: 500;
 }
 
@@ -108,7 +108,7 @@
   align-items: center;
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .ratings-header h4 {
@@ -118,7 +118,8 @@
 }
 
 .overall-badge {
-  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+  background: var(--accent-color);
+  color: white;
   padding: 0.3rem 0.7rem;
   border-radius: 15px;
   font-size: 0.85rem;
@@ -143,8 +144,8 @@
 }
 
 .rating-item.highlight {
-  background-color: rgba(76, 175, 80, 0.15);
-  border: 1px solid rgba(76, 175, 80, 0.3);
+  background-color: rgba(98, 153, 36, 0.12);
+  border: 1px solid rgba(98, 153, 36, 0.35);
 }
 
 .rating-item.updated {
@@ -153,7 +154,7 @@
 
 @keyframes ratingPulse {
   0% { transform: scale(1); }
-  50% { transform: scale(1.05); background-color: rgba(76, 175, 80, 0.3); }
+  50% { transform: scale(1.05); background-color: rgba(98, 153, 36, 0.25); }
   100% { transform: scale(1); }
 }
 
@@ -170,7 +171,7 @@
 }
 
 .rating-up {
-  color: var(--accent-color);
+  color: var(--success-color);
 }
 
 .rating-down {
