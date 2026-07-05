@@ -62,7 +62,7 @@
     align-items: center;
     margin-bottom: 2rem;
     padding-bottom: 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .stats-header h1 {
@@ -71,11 +71,12 @@
 }
 
 .overall-rating {
-    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+    background: var(--accent-color);
+    color: #fff;
     padding: 1.5rem 2rem;
     border-radius: var(--border-radius);
     text-align: center;
-    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    box-shadow: var(--shadow-md);
 }
 
 .rating-label {
@@ -124,11 +125,11 @@
 }
 
 .category-card.weakness {
-    border-left-color: #f44336;
+    border-left-color: var(--danger-color);
 }
 
 .category-card.strength {
-    border-left-color: var(--accent-color);
+    border-left-color: var(--success-color);
 }
 
 .category-name {
@@ -151,7 +152,7 @@
 
 .rating-fill {
     height: 100%;
-    background: linear-gradient(90deg, #f44336, #ff9800, var(--accent-color));
+    background: linear-gradient(90deg, var(--danger-color), #ff9800, var(--success-color));
     border-radius: 3px;
     transition: width 0.3s ease;
 }

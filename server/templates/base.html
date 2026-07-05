@@ -2,6 +2,16 @@
 <html lang="en">
 
 <head>
+  <script>
+    // Apply the saved theme before the first paint to avoid a light flash
+    (function () {
+      try {
+        if (localStorage.getItem('theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chess Puzzle Trainer</title>
@@ -38,6 +48,10 @@
         Login with Lichess
       </a>
       {% endif %}
+      <button id="theme-toggle" class="btn btn-secondary theme-toggle" aria-label="Toggle dark mode"
+        title="Toggle dark mode">
+        <i class="fas fa-moon"></i>
+      </button>
     </nav>
   </header>
 

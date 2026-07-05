@@ -3,6 +3,8 @@
 $(document).ready(function () {
     console.log("Scripts loaded.");
 
+    initThemeToggle();
+
     var $puzzleData = $('#puzzle-data');
     if ($puzzleData.length > 0) {
         if (typeof Chessground === 'function' && typeof Chess === 'function') {
@@ -13,6 +15,34 @@ $(document).ready(function () {
         }
     }
 });
+
+function initThemeToggle() {
+    var $btn = $('#theme-toggle');
+    if (!$btn.length) return;
+
+    function isDark() {
+        return document.documentElement.getAttribute('data-theme') === 'dark';
+    }
+
+    function renderIcon() {
+        $btn.find('i').attr('class', isDark() ? 'fas fa-sun' : 'fas fa-moon');
+    }
+
+    $btn.on('click', function () {
+        var dark = isDark();
+        if (dark) {
+            document.documentElement.removeAttribute('data-theme');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        try {
+            localStorage.setItem('theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        renderIcon();
+    });
+
+    renderIcon();
+}
 
 function initPuzzle($data) {
     var fen = $data.data('fen');
