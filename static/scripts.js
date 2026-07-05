@@ -204,11 +204,22 @@ function initPuzzle($data) {
 
     // Called by chessground after the user makes a board-legal move
     // (click-to-move or drag — dests guarantee legality).
+    // Briefly flash squares green via chessground's custom highlight classes
+    function flashSquares(keys) {
+        var custom = new Map();
+        keys.forEach(function (k) { custom.set(k, 'flash-correct'); });
+        cg.set({ highlight: { custom: custom } });
+        setTimeout(function () {
+            cg.set({ highlight: { custom: new Map() } });
+        }, 650);
+    }
+
     function onUserMove(orig, dest) {
         var result = handlePlayerMove(orig, dest);
         if (result === 'correct') {
             lastMove = [orig, dest];
             syncBoard(); // renders promotion, check ring; locks dests until reply
+            flashSquares([orig, dest]);
             if (puzzleComplete) cg.stop();
         } else {
             // Wrong or illegal: chess.js was undone (or never changed), so this
@@ -252,11 +263,42 @@ function initPuzzle($data) {
         });
     }
 
+    // Ease a displayed number from its current value to `to`
+    function animateNumber($el, to, ms) {
+        var from = parseInt($el.text(), 10);
+        if (isNaN(from) || from === to) {
+            $el.text(to);
+            return;
+        }
+        var start = performance.now();
+        function frame(now) {
+            var p = Math.min((now - start) / (ms || 500), 1);
+            var eased = 1 - Math.pow(1 - p, 3);
+            $el.text(Math.round(from + (to - from) * eased));
+            if (p < 1) requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+    }
+
+    // Float a "+12" / "-8" chip up out of the container
+    function spawnDelta($container, change) {
+        if (!change) return;
+        var $chip = $('<span class="delta-chip">')
+            .addClass(change > 0 ? 'delta-up' : 'delta-down')
+            .text((change > 0 ? '+' : '') + change);
+        $container.append($chip);
+        setTimeout(function () { $chip.remove(); }, 1200);
+    }
+
     function updateRatingsDisplay(changes, overallRating, success) {
         // Update overall rating
         var $overallEl = $('#overall-rating-value');
         if ($overallEl.length) {
-            $overallEl.text(overallRating);
+            var oldOverall = parseInt($overallEl.text(), 10);
+            animateNumber($overallEl, overallRating);
+            if (!isNaN(oldOverall)) {
+                spawnDelta($overallEl.parent(), overallRating - oldOverall);
+            }
         }
 
         // Update each changed category
@@ -267,8 +309,8 @@ function initPuzzle($data) {
             var $itemEl = $ratingEl.closest('.rating-item');
 
             if ($ratingEl.length) {
-                // Update the value
-                $ratingEl.text(change.new_rating);
+                animateNumber($ratingEl, change.new_rating);
+                spawnDelta($itemEl, change.change);
 
                 // Add color class based on change direction
                 if (change.change > 0) {
