@@ -677,6 +677,11 @@ function initPuzzle($data) {
         });
         $('#review-variation').prop('hidden', !variation);
         if (engineOn) {
+            // blank stale analysis immediately; fresh lines replace it
+            $('#engine-eval').text('…');
+            $('#engine-lines').empty();
+            lastEngineLines = [];
+            cg.setAutoShapes([]);
             engine.analyze(node.fen);
         } else {
             cg.setAutoShapes([]);
@@ -816,6 +821,10 @@ function initPuzzle($data) {
 
     var engine = createEngineManager(function (u) {
         if (!engineOn) return;
+        // Drop results that aren't for the position on the board — during
+        // navigation the previous search can still emit a few lines, and
+        // side-to-move normalization makes those look wildly wrong
+        if (u.fen !== viewNode().fen) return;
         lastEngineLines = u.lines;
         var best = u.lines[0];
         if (best) $('#engine-eval').text(best.evalText + ' · d' + best.depth);
