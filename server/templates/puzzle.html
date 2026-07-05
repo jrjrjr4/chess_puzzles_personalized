@@ -24,11 +24,14 @@
         title="Toggle engine analysis">
         <i class="fas fa-microchip"></i><span id="engine-eval">Engine</span>
       </button>
+      <button type="button" class="review-btn review-arrow-toggle" id="arrow-toggle" aria-pressed="true"
+        title="Toggle best-move arrow" hidden>
+        <i class="fas fa-location-arrow"></i>
+      </button>
     </div>
-    <div class="review-moves" id="review-moves"></div>
+    <div class="engine-lines" id="engine-lines" hidden></div>
     <div class="review-variation" id="review-variation" hidden>
-      <span class="var-glyph">&#8627;</span>
-      <span class="review-moves review-moves-var" id="review-var-moves"></span>
+      <span class="var-glyph">&#8627; sideline</span>
       <button type="button" class="review-btn review-btn-sm" id="review-back-main" aria-label="Back to main line">
         <i class="fas fa-times"></i> main line
       </button>

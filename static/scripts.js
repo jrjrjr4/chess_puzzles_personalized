@@ -132,13 +132,24 @@ function initSoundToggle() {
 // user first toggles the engine on in review mode) ---
 function createEngineManager(onUpdate) {
     var ENGINE_PATH = '/static/engine/stockfish-18-lite-single.js';
-    var worker = null, ready = false, curFen = null, pending = null, debounce = null;
+    var MULTIPV = 2;
+    var worker = null, ready = false, searching = false;
+    var curFen = null, pending = null, debounce = null;
+    var lines = []; // per-search snapshot, index 0 = best line
 
     function ensureWorker() {
         if (worker) return;
         worker = new Worker(ENGINE_PATH);
         worker.onmessage = function (e) {
             if (typeof e.data === 'string') onLine(e.data);
+        };
+        worker.onerror = function () {
+            // wasm trap or load failure: drop the worker; the next analyze
+            // call recreates it from scratch
+            try { worker.terminate(); } catch (err) {}
+            worker = null;
+            ready = false;
+            searching = false;
         };
         worker.postMessage('uci');
     }
@@ -147,31 +158,49 @@ function createEngineManager(onUpdate) {
         if (line === 'uciok') {
             worker.postMessage('setoption name Hash value 16'); // keep mobile memory low
             worker.postMessage('setoption name Threads value 1');
+            worker.postMessage('setoption name MultiPV value ' + MULTIPV);
             worker.postMessage('ucinewgame');
             worker.postMessage('isready');
         } else if (line === 'readyok') {
             ready = true;
-            if (pending) {
-                search(pending);
+            if (pending && !searching) {
+                var f = pending;
                 pending = null;
+                startSearch(f);
+            }
+        } else if (line.indexOf('bestmove') === 0) {
+            searching = false;
+            if (pending) {
+                var next = pending;
+                pending = null;
+                startSearch(next);
             }
         } else if (line.indexOf('info ') === 0 && curFen) {
             if (/(lower|upper)bound/.test(line)) return;
-            var m = line.match(/depth (\d+).*?score (cp|mate) (-?\d+).*?\bpv ([a-h][1-8][a-h][1-8][qrbn]?)/);
+            var m = line.match(/depth (\d+)\b.*?multipv (\d+).*?score (cp|mate) (-?\d+).*?\bpv (.+)$/);
             if (!m) return;
             var depth = +m[1];
-            var val = +m[3];
+            var mpv = +m[2];
+            var val = +m[4];
             if (curFen.split(' ')[1] === 'b') val = -val; // normalize white-positive
-            var evalText = m[2] === 'mate'
+            var evalText = m[3] === 'mate'
                 ? (val < 0 ? '-#' + Math.abs(val) : '#' + val)
                 : (val > 0 ? '+' : '') + (val / 100).toFixed(1);
-            onUpdate({ evalText: evalText + ' · d' + depth, bestUci: m[4] });
+            lines[mpv - 1] = {
+                evalText: evalText,
+                depth: depth,
+                ucis: m[5].trim().split(/\s+/)
+            };
+            onUpdate({ fen: curFen, lines: lines.slice(0, MULTIPV) });
         }
     }
 
-    function search(fen) {
+    // Never send 'go' while a search runs, and never 'stop' while idle —
+    // either order of mistake can trap the wasm build.
+    function startSearch(fen) {
         curFen = fen;
-        worker.postMessage('stop');
+        lines = [];
+        searching = true;
         worker.postMessage('position fen ' + fen);
         worker.postMessage('go depth 18 movetime 4000'); // first limit reached wins
     }
@@ -182,17 +211,20 @@ function createEngineManager(onUpdate) {
             clearTimeout(debounce);
             debounce = setTimeout(function () {
                 if (!ready) {
-                    pending = fen;
-                    return;
+                    pending = fen; // started by readyok
+                } else if (searching) {
+                    pending = fen; // started by the bestmove that 'stop' forces out
+                    worker.postMessage('stop');
+                } else {
+                    startSearch(fen);
                 }
-                search(fen);
             }, 150); // debounce rapid arrow-key stepping
         },
         pause: function () {
             clearTimeout(debounce);
             curFen = null;
             pending = null;
-            if (worker) worker.postMessage('stop');
+            if (worker && searching) worker.postMessage('stop');
         },
         destroy: function () {
             clearTimeout(debounce);
@@ -200,9 +232,27 @@ function createEngineManager(onUpdate) {
                 worker.terminate();
                 worker = null;
                 ready = false;
+                searching = false;
             }
         }
     };
+}
+
+// Convert a UCI move sequence to a short SAN string for display
+function uciLineToSan(fen, ucis, maxPlies) {
+    var g = new Chess(fen);
+    var sans = [];
+    for (var i = 0; i < ucis.length && i < maxPlies; i++) {
+        var u = ucis[i];
+        var m = g.move({
+            from: u.slice(0, 2),
+            to: u.slice(2, 4),
+            promotion: u.length > 4 ? u[4] : undefined
+        });
+        if (!m) break;
+        sans.push(m.san);
+    }
+    return sans.join(' ');
 }
 
 function initPuzzle($data) {
@@ -270,6 +320,10 @@ function initPuzzle($data) {
     var variation = null;                // { startPly, moves: [node, ...] }
     var reviewGame = new Chess();
     var engineOn = false;
+    var arrowOn = true;
+    try {
+        arrowOn = localStorage.getItem('engine-arrow') !== 'off';
+    } catch (e) {}
     var reviewControlsBound = false;
 
     function isPlayersTurn() {
@@ -621,44 +675,11 @@ function initPuzzle($data) {
             lastMove: node.lastMove || [], // [] clears the highlight at ply 0
             movable: { color: 'both', dests: computeDests(reviewGame) }
         });
-        renderMoveChips();
+        $('#review-variation').prop('hidden', !variation);
         if (engineOn) {
             engine.analyze(node.fen);
         } else {
             cg.setAutoShapes([]);
-        }
-    }
-
-    function renderMoveChips() {
-        var $moves = $('#review-moves').empty();
-        $moves.append($('<button type="button" class="move-chip chip-opp" data-ply="0">start</button>'));
-        for (var i = 1; i < mainLine.length; i++) {
-            // movesList[0] is the opponent's move, so odd plies are theirs
-            $moves.append($('<button type="button" class="move-chip">')
-                .addClass(i % 2 === 1 ? 'chip-opp' : '')
-                .attr('data-ply', i)
-                .text(mainLine[i].san));
-        }
-        if (view.line === 'main') {
-            $moves.find('[data-ply="' + view.ply + '"]').addClass('current');
-        }
-
-        if (variation) {
-            $('#review-variation').prop('hidden', false);
-            var $v = $('#review-var-moves').empty();
-            variation.moves.forEach(function (node, idx) {
-                $v.append($('<button type="button" class="move-chip">')
-                    .attr('data-idx', idx + 1)
-                    .toggleClass('current', view.line === 'var' && view.idx === idx + 1)
-                    .text(node.san));
-            });
-        } else {
-            $('#review-variation').prop('hidden', true);
-        }
-
-        var $cur = $('#review-panel .move-chip.current');
-        if ($cur.length && $cur[0].scrollIntoView) {
-            $cur[0].scrollIntoView({ inline: 'center', block: 'nearest' });
         }
     }
 
@@ -728,14 +749,6 @@ function initPuzzle($data) {
         $('#review-next').on('click', goNext);
         $('#review-last').on('click', goLast);
 
-        $('#review-moves').on('click', '.move-chip', function () {
-            view = { line: 'main', ply: parseInt($(this).attr('data-ply'), 10) };
-            renderView();
-        });
-        $('#review-var-moves').on('click', '.move-chip', function () {
-            view = { line: 'var', idx: parseInt($(this).attr('data-idx'), 10) };
-            renderView();
-        });
         $('#review-back-main').on('click', function () {
             var backPly = variation ? variation.startPly : 0;
             variation = null;
@@ -753,6 +766,8 @@ function initPuzzle($data) {
         $('#engine-toggle').on('click', function () {
             engineOn = !engineOn;
             $(this).attr('aria-pressed', String(engineOn));
+            $('#arrow-toggle').prop('hidden', !engineOn);
+            $('#engine-lines').prop('hidden', !engineOn).empty();
             if (engineOn) {
                 $('#engine-eval').text('…');
                 engine.analyze(viewNode().fen);
@@ -762,11 +777,50 @@ function initPuzzle($data) {
                 cg.setAutoShapes([]);
             }
         });
+
+        $('#arrow-toggle').on('click', function () {
+            arrowOn = !arrowOn;
+            $(this).attr('aria-pressed', String(arrowOn));
+            try {
+                localStorage.setItem('engine-arrow', arrowOn ? 'on' : 'off');
+            } catch (e) {}
+            drawEngineArrow();
+        });
+        $('#arrow-toggle').attr('aria-pressed', String(arrowOn));
+    }
+
+    var lastEngineLines = [];
+
+    function drawEngineArrow() {
+        var best = lastEngineLines[0];
+        if (engineOn && arrowOn && best && best.ucis.length) {
+            var u = best.ucis[0];
+            cg.setAutoShapes([{ orig: u.slice(0, 2), dest: u.slice(2, 4), brush: 'blue' }]);
+        } else {
+            cg.setAutoShapes([]);
+        }
+    }
+
+    function renderEngineLines(fen, lines) {
+        var $box = $('#engine-lines').empty();
+        lines.forEach(function (l) {
+            if (!l) return;
+            var $row = $('<div class="engine-line">');
+            $row.append($('<span class="engine-score">')
+                .addClass(l.evalText.charAt(0) === '-' ? 'score-black' : 'score-white')
+                .text(l.evalText));
+            $row.append($('<span class="engine-pv">').text(uciLineToSan(fen, l.ucis, 8)));
+            $box.append($row);
+        });
     }
 
     var engine = createEngineManager(function (u) {
-        $('#engine-eval').text(u.evalText);
-        cg.setAutoShapes([{ orig: u.bestUci.slice(0, 2), dest: u.bestUci.slice(2, 4), brush: 'blue' }]);
+        if (!engineOn) return;
+        lastEngineLines = u.lines;
+        var best = u.lines[0];
+        if (best) $('#engine-eval').text(best.evalText + ' · d' + best.depth);
+        renderEngineLines(u.fen, u.lines);
+        drawEngineArrow();
     });
     $(window).on('pagehide', function () { engine.destroy(); });
 

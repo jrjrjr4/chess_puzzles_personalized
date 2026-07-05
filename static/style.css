@@ -484,7 +484,9 @@ cg-board square.flash-correct {
 
 /* Post-puzzle review panel */
 .review-panel[hidden],
-.review-variation[hidden] {
+.review-variation[hidden],
+.engine-lines[hidden],
+.review-arrow-toggle[hidden] {
   display: none;
 }
 
@@ -539,41 +541,56 @@ cg-board square.flash-correct {
   color: var(--accent-color);
 }
 
-.review-moves {
+/* Engine analysis lines: score + short best line, one row per PV */
+.engine-lines {
   display: flex;
+  flex-direction: column;
   gap: 0.3rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 0.4rem;
 }
 
-.move-chip {
+.engine-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 28px;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.engine-score {
   flex: 0 0 auto;
-  min-height: 36px;
-  padding: 0.15rem 0.55rem;
-  border-radius: 15px;
-  background: var(--bg-tertiary);
+  min-width: 52px;
+  text-align: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.engine-score.score-white {
+  background: #f0f0f0;
+  color: #222;
   border: 1px solid var(--border-color);
+}
+
+.engine-score.score-black {
+  background: #3a3a3a;
+  color: #eee;
+  border: 1px solid #3a3a3a;
+}
+
+.engine-pv {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-primary);
-  font: 600 0.85rem monospace;
-  cursor: pointer;
-}
-
-.move-chip.chip-opp {
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-
-.move-chip.current {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  color: #fff;
 }
 
 .review-variation {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.4rem;
   border-top: 1px dashed var(--border-color);
   padding-top: 0.4rem;
@@ -581,12 +598,8 @@ cg-board square.flash-correct {
 
 .var-glyph {
   color: var(--text-secondary);
-  flex: 0 0 auto;
-}
-
-.review-variation .move-chip {
   font-style: italic;
-  border-style: dashed;
+  flex: 0 0 auto;
 }
 
 .review-btn-sm {
