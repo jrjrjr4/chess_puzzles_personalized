@@ -142,7 +142,8 @@ class DBManager:
             print(f"Error in get_user_category_full_data: {e}")
             return {}
 
-    def calculate_k_factor(self, attempts):
+    @staticmethod
+    def calculate_k_factor(attempts):
         """
         Calculate K-factor based on number of attempts.
         - 0 attempts: K = 250
@@ -243,6 +244,18 @@ class DBManager:
         except Exception as e:
             print(f"Error in update_user_category_rating: {e}")
             return None
+
+    def bulk_upsert_category_ratings(self, rows):
+        """Upserts multiple category rating rows in one request (spillover updates)."""
+        if not self.client or not rows:
+            return False
+
+        try:
+            self.client.table('user_category_ratings').upsert(rows, on_conflict='user_id, category').execute()
+            return True
+        except Exception as e:
+            print(f"Error in bulk_upsert_category_ratings: {e}")
+            return False
 
     def get_user_overall_rating(self, user_id):
         """Get the user's overall rating and attempts count."""

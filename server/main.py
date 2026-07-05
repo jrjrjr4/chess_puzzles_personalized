@@ -28,6 +28,28 @@ puzzles = load_puzzles(db_manager)
 
 DEFAULT_RATING = 1600  # Starting rating for all categories
 
+# Spillover: categories the puzzle doesn't test still borrow a fraction of the
+# evidence while they are provisional, so the whole ratings board converges
+# quickly instead of sitting frozen at the default.
+SPILLOVER_MAX_WEIGHT = 0.5   # evidence weight for a never-tested category
+SPILLOVER_ATTEMPT_CUTOFF = 5  # direct attempts after which spillover stops
+
+
+def calculate_spillover_change(old_rating, attempts, success, puzzle_rating):
+    """
+    Elo change for a category NOT directly tested by the puzzle.
+    Weight fades linearly from SPILLOVER_MAX_WEIGHT at 0 direct attempts to
+    zero at SPILLOVER_ATTEMPT_CUTOFF. No minimum-change floor: spillover is
+    a gentle drift, not a full result.
+    """
+    if attempts >= SPILLOVER_ATTEMPT_CUTOFF:
+        return 0
+    weight = SPILLOVER_MAX_WEIGHT * (SPILLOVER_ATTEMPT_CUTOFF - attempts) / SPILLOVER_ATTEMPT_CUTOFF
+    k_factor = DBManager.calculate_k_factor(attempts)
+    expected = 1 / (1 + 10 ** ((puzzle_rating - old_rating) / 400))
+    actual = 1 if success else 0
+    return round(k_factor * (actual - expected) * weight)
+
 
 def calculate_overall_rating(stored_ratings):
     """Calculate average rating across tracked categories, filling missing values."""
@@ -266,9 +288,9 @@ def record_attempt():
         
         for theme in tracked_themes:
             result = db_manager.update_user_category_rating(
-                user['db_id'], 
-                theme, 
-                success, 
+                user['db_id'],
+                theme,
+                success,
                 puzzle_rating
             )
             if result:
@@ -280,7 +302,42 @@ def record_attempt():
                     'attempts': result['attempts'],
                     'k_factor': result['k_factor']
                 })
-    
+
+        # Spillover: provisional categories (few direct attempts) borrow a
+        # fraction of this result too, so the whole board converges early on
+        # instead of sitting at the default until each theme comes up.
+        category_data = db_manager.get_user_category_full_data(user['db_id'])
+        spill_rows = []
+        for theme in TRACKED_THEMES:
+            if theme in tracked_themes:
+                continue
+            cat = category_data.get(theme) or {}
+            attempts = cat.get('attempts', 0) or 0
+            old_rating = cat.get('rating', DEFAULT_RATING)
+            change = calculate_spillover_change(old_rating, attempts, success, puzzle_rating)
+            if change == 0:
+                continue
+            new_rating = max(400, min(2800, old_rating + change))
+            # attempts stays unchanged: it counts direct evidence only
+            spill_rows.append({
+                'user_id': user['db_id'],
+                'category': theme,
+                'rating': new_rating,
+                'attempts': attempts,
+                'updated_at': 'now()'
+            })
+            rating_changes.append({
+                'category': get_theme_display_name(theme),
+                'old_rating': old_rating,
+                'new_rating': new_rating,
+                'change': new_rating - old_rating,
+                'attempts': attempts,
+                'k_factor': DBManager.calculate_k_factor(attempts),
+                'spillover': True
+            })
+        if spill_rows:
+            db_manager.bulk_upsert_category_ratings(spill_rows)
+
     # Update overall rating independently (its own Elo rating)
     overall_result = db_manager.update_user_overall_rating(
         user['db_id'],

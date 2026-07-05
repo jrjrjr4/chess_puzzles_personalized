@@ -281,11 +281,12 @@ function initPuzzle($data) {
     }
 
     // Float a "+12" / "-8" chip up out of the container
-    function spawnDelta($container, change) {
+    function spawnDelta($container, change, isSpillover) {
         if (!change) return;
         var $chip = $('<span class="delta-chip">')
             .addClass(change > 0 ? 'delta-up' : 'delta-down')
             .text((change > 0 ? '+' : '') + change);
+        if (isSpillover) $chip.addClass('delta-spill');
         $container.append($chip);
         setTimeout(function () { $chip.remove(); }, 1200);
     }
@@ -310,7 +311,10 @@ function initPuzzle($data) {
 
             if ($ratingEl.length) {
                 animateNumber($ratingEl, change.new_rating);
-                spawnDelta($itemEl, change.change);
+                spawnDelta($itemEl, change.change, change.spillover);
+
+                // Spillover drift stays visually quiet: no color change, no pulse
+                if (change.spillover) return;
 
                 // Add color class based on change direction
                 if (change.change > 0) {

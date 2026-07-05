@@ -319,3 +319,57 @@ class TestTrackedThemesConsistency:
         """Test default rating is 1600."""
         assert DEFAULT_RATING == 1600
 
+
+
+class TestSpilloverChange:
+    """Tests for spillover rating changes on categories a puzzle doesn't test."""
+
+    def get_calculate_spillover_change(self):
+        """Import the function from main.py without DB initialization."""
+        from unittest.mock import patch, MagicMock
+
+        with patch('server.main.DBManager') as MockDB:
+            MockDB.return_value = MagicMock(client=None)
+            with patch('server.main.load_puzzles') as MockLoad:
+                MockLoad.return_value = []
+                from server.main import calculate_spillover_change
+                return calculate_spillover_change
+
+    def test_new_category_moves_substantially(self):
+        """A never-tested category should move a lot from any result."""
+        spill = self.get_calculate_spillover_change()
+        change = spill(1600, 0, True, 1600)
+        # K=250, expected=0.5, weight=0.5 -> ~62
+        assert 50 <= change <= 70
+
+    def test_loss_is_symmetric(self):
+        """Losses drift provisional categories down as much as wins drift up."""
+        spill = self.get_calculate_spillover_change()
+        up = spill(1600, 0, True, 1600)
+        down = spill(1600, 0, False, 1600)
+        assert down == -up
+
+    def test_spillover_fades_with_attempts(self):
+        """More direct attempts -> smaller spillover."""
+        spill = self.get_calculate_spillover_change()
+        changes = [spill(1600, a, True, 1600) for a in range(5)]
+        assert all(changes[i] > changes[i + 1] for i in range(4))
+
+    def test_established_category_gets_no_spillover(self):
+        """At or past the cutoff, spillover stops entirely."""
+        spill = self.get_calculate_spillover_change()
+        assert spill(1600, 5, True, 1600) == 0
+        assert spill(1600, 20, False, 1600) == 0
+
+    def test_respects_elo_expectation(self):
+        """Beating an easy puzzle moves a high provisional rating less."""
+        spill = self.get_calculate_spillover_change()
+        vs_equal = spill(1600, 0, True, 1600)
+        vs_easy = spill(2000, 0, True, 1400)
+        assert vs_easy < vs_equal
+
+    def test_no_minimum_change_floor(self):
+        """Unlike direct updates, spillover can round to zero."""
+        spill = self.get_calculate_spillover_change()
+        # Very easy puzzle vs high rating: expected ~1, win changes ~nothing
+        assert spill(2600, 4, True, 800) == 0

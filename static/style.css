@@ -462,6 +462,13 @@ cg-board square.flash-correct {
   color: var(--danger-color);
 }
 
+/* Spillover drift chips: smaller and quieter than direct-hit chips */
+.delta-chip.delta-spill {
+  font-size: 0.65rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
 @keyframes delta-float {
   0% { opacity: 0; transform: translateY(4px); }
   15% { opacity: 1; }
