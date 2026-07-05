@@ -482,6 +482,121 @@ cg-board square.flash-correct {
   opacity: 0.8;
 }
 
+/* Post-puzzle review panel */
+.review-panel[hidden],
+.review-variation[hidden] {
+  display: none;
+}
+
+.review-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-sm);
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.review-controls {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.review-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.review-btn:hover {
+  border-color: var(--accent-color);
+}
+
+.review-btn:disabled {
+  opacity: 0.4;
+}
+
+.review-engine {
+  margin-left: auto;
+  padding: 0 0.7rem;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.review-engine[aria-pressed="true"] {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.review-moves {
+  display: flex;
+  gap: 0.3rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.move-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0.15rem 0.55rem;
+  border-radius: 15px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font: 600 0.85rem monospace;
+  cursor: pointer;
+}
+
+.move-chip.chip-opp {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.move-chip.current {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.review-variation {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 0.4rem;
+}
+
+.var-glyph {
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+
+.review-variation .move-chip {
+  font-style: italic;
+  border-style: dashed;
+}
+
+.review-btn-sm {
+  min-height: 36px;
+  min-width: auto;
+  font-size: 0.75rem;
+  padding: 0 0.5rem;
+  flex: 0 0 auto;
+}
+
 @keyframes delta-float {
   0% { opacity: 0; transform: translateY(4px); }
   15% { opacity: 1; }

@@ -128,6 +128,83 @@ function initSoundToggle() {
     renderIcon();
 }
 
+// --- Stockfish worker manager (self-hosted, lazy: nothing loads until the
+// user first toggles the engine on in review mode) ---
+function createEngineManager(onUpdate) {
+    var ENGINE_PATH = '/static/engine/stockfish-18-lite-single.js';
+    var worker = null, ready = false, curFen = null, pending = null, debounce = null;
+
+    function ensureWorker() {
+        if (worker) return;
+        worker = new Worker(ENGINE_PATH);
+        worker.onmessage = function (e) {
+            if (typeof e.data === 'string') onLine(e.data);
+        };
+        worker.postMessage('uci');
+    }
+
+    function onLine(line) {
+        if (line === 'uciok') {
+            worker.postMessage('setoption name Hash value 16'); // keep mobile memory low
+            worker.postMessage('setoption name Threads value 1');
+            worker.postMessage('ucinewgame');
+            worker.postMessage('isready');
+        } else if (line === 'readyok') {
+            ready = true;
+            if (pending) {
+                search(pending);
+                pending = null;
+            }
+        } else if (line.indexOf('info ') === 0 && curFen) {
+            if (/(lower|upper)bound/.test(line)) return;
+            var m = line.match(/depth (\d+).*?score (cp|mate) (-?\d+).*?\bpv ([a-h][1-8][a-h][1-8][qrbn]?)/);
+            if (!m) return;
+            var depth = +m[1];
+            var val = +m[3];
+            if (curFen.split(' ')[1] === 'b') val = -val; // normalize white-positive
+            var evalText = m[2] === 'mate'
+                ? (val < 0 ? '-#' + Math.abs(val) : '#' + val)
+                : (val > 0 ? '+' : '') + (val / 100).toFixed(1);
+            onUpdate({ evalText: evalText + ' · d' + depth, bestUci: m[4] });
+        }
+    }
+
+    function search(fen) {
+        curFen = fen;
+        worker.postMessage('stop');
+        worker.postMessage('position fen ' + fen);
+        worker.postMessage('go depth 18 movetime 4000'); // first limit reached wins
+    }
+
+    return {
+        analyze: function (fen) {
+            ensureWorker();
+            clearTimeout(debounce);
+            debounce = setTimeout(function () {
+                if (!ready) {
+                    pending = fen;
+                    return;
+                }
+                search(fen);
+            }, 150); // debounce rapid arrow-key stepping
+        },
+        pause: function () {
+            clearTimeout(debounce);
+            curFen = null;
+            pending = null;
+            if (worker) worker.postMessage('stop');
+        },
+        destroy: function () {
+            clearTimeout(debounce);
+            if (worker) {
+                worker.terminate();
+                worker = null;
+                ready = false;
+            }
+        }
+    };
+}
+
 function initPuzzle($data) {
     var fen = $data.data('fen');
     var movesStr = $data.data('moves');
@@ -166,6 +243,35 @@ function initPuzzle($data) {
     var attemptRecorded = false;
     var lastMove = null; // [from, to] of the last accepted move
 
+    // --- Post-puzzle review state ---
+    // mainLine[k] = position at ply k; ply 0 is the puzzle FEN, before the
+    // opponent's first move.
+    var mainLine = [{ fen: fen, lastMove: null, check: false, san: null }];
+    (function buildMainLine() {
+        var scratch = new Chess(fen);
+        movesList.forEach(function (uci) {
+            var m = scratch.move({
+                from: uci.slice(0, 2),
+                to: uci.slice(2, 4),
+                promotion: uci.length > 4 ? uci[4] : undefined
+            });
+            if (!m) return; // malformed tail; keep what we have
+            mainLine.push({
+                fen: scratch.fen(),
+                lastMove: [m.from, m.to],
+                check: scratch.in_check(),
+                san: m.san
+            });
+        });
+    })();
+
+    var reviewMode = false;
+    var view = { line: 'main', ply: 0 }; // or { line: 'var', idx: 1.. }
+    var variation = null;                // { startPly, moves: [node, ...] }
+    var reviewGame = new Chess();
+    var engineOn = false;
+    var reviewControlsBound = false;
+
     function isPlayersTurn() {
         return !puzzleComplete && !game.game_over() && game.turn() === playerColorLetter;
     }
@@ -174,10 +280,10 @@ function initPuzzle($data) {
         return game.turn() === 'w' ? 'white' : 'black';
     }
 
-    function computeDests() {
+    function computeDests(g) {
         var dests = new Map();
-        game.SQUARES.forEach(function (s) {
-            var ms = game.moves({ square: s, verbose: true });
+        g.SQUARES.forEach(function (s) {
+            var ms = g.moves({ square: s, verbose: true });
             if (ms.length) {
                 dests.set(s, ms.map(function (m) { return m.to; }));
             }
@@ -215,7 +321,7 @@ function initPuzzle($data) {
             lastMove: lastMove || undefined,
             movable: {
                 color: playerColor,
-                dests: isPlayersTurn() ? computeDests() : new Map()
+                dests: isPlayersTurn() ? computeDests(game) : new Map()
             }
         });
     }
@@ -302,12 +408,17 @@ function initPuzzle($data) {
     }
 
     function onUserMove(orig, dest) {
+        if (reviewMode) return onReviewMove(orig, dest);
+
         var result = handlePlayerMove(orig, dest);
         if (result === 'correct') {
             lastMove = [orig, dest];
             syncBoard(); // renders promotion, check ring; locks dests until reply
             flashSquares([orig, dest]);
-            if (puzzleComplete) cg.stop();
+            if (puzzleComplete) {
+                cg.stop();
+                setTimeout(enterReview, 700); // let the flash and chime land first
+            }
         } else {
             // Wrong or illegal: chess.js was undone (or never changed), so this
             // animates the piece back and restores the previous highlights.
@@ -456,6 +567,7 @@ function initPuzzle($data) {
                 .removeClass('status-error').addClass('status-success');
             puzzleComplete = true;
             cg.stop();
+            setTimeout(enterReview, 400);
         } else {
             $('#status-message').text("Your turn...")
                 .removeClass('status-success status-error');
@@ -488,9 +600,185 @@ function initPuzzle($data) {
                     .removeClass('status-error status-success');
                 puzzleComplete = true;
                 cg.stop();
+                setTimeout(enterReview, 400);
             }
         }
     });
+
+    // --- Post-puzzle review mode ---
+
+    function viewNode() {
+        return view.line === 'main' ? mainLine[view.ply] : variation.moves[view.idx - 1];
+    }
+
+    function renderView() {
+        var node = viewNode();
+        reviewGame.load(node.fen);
+        cg.set({
+            fen: node.fen,
+            turnColor: reviewGame.turn() === 'w' ? 'white' : 'black',
+            check: node.check,
+            lastMove: node.lastMove || [], // [] clears the highlight at ply 0
+            movable: { color: 'both', dests: computeDests(reviewGame) }
+        });
+        renderMoveChips();
+        if (engineOn) {
+            engine.analyze(node.fen);
+        } else {
+            cg.setAutoShapes([]);
+        }
+    }
+
+    function renderMoveChips() {
+        var $moves = $('#review-moves').empty();
+        $moves.append($('<button type="button" class="move-chip chip-opp" data-ply="0">start</button>'));
+        for (var i = 1; i < mainLine.length; i++) {
+            // movesList[0] is the opponent's move, so odd plies are theirs
+            $moves.append($('<button type="button" class="move-chip">')
+                .addClass(i % 2 === 1 ? 'chip-opp' : '')
+                .attr('data-ply', i)
+                .text(mainLine[i].san));
+        }
+        if (view.line === 'main') {
+            $moves.find('[data-ply="' + view.ply + '"]').addClass('current');
+        }
+
+        if (variation) {
+            $('#review-variation').prop('hidden', false);
+            var $v = $('#review-var-moves').empty();
+            variation.moves.forEach(function (node, idx) {
+                $v.append($('<button type="button" class="move-chip">')
+                    .attr('data-idx', idx + 1)
+                    .toggleClass('current', view.line === 'var' && view.idx === idx + 1)
+                    .text(node.san));
+            });
+        } else {
+            $('#review-variation').prop('hidden', true);
+        }
+
+        var $cur = $('#review-panel .move-chip.current');
+        if ($cur.length && $cur[0].scrollIntoView) {
+            $cur[0].scrollIntoView({ inline: 'center', block: 'nearest' });
+        }
+    }
+
+    function goFirst() { view = { line: 'main', ply: 0 }; renderView(); }
+    function goLast() { view = { line: 'main', ply: mainLine.length - 1 }; renderView(); }
+
+    function goNext() {
+        if (view.line === 'main') {
+            if (view.ply < mainLine.length - 1) view.ply++;
+        } else if (view.idx < variation.moves.length) {
+            view.idx++;
+        }
+        renderView();
+    }
+
+    function goPrev() {
+        if (view.line === 'var') {
+            if (view.idx > 1) view.idx--;
+            else view = { line: 'main', ply: variation.startPly };
+        } else if (view.ply > 0) {
+            view.ply--;
+        }
+        renderView();
+    }
+
+    // Free exploration: any legal move in review starts/extends ONE sideline.
+    function onReviewMove(orig, dest) {
+        var m = reviewGame.move({ from: orig, to: dest, promotion: 'q' });
+        if (!m) {
+            renderView(); // shouldn't happen (dests are legal) but stay in sync
+            return;
+        }
+        var uci = orig + dest + (m.flags.indexOf('p') !== -1 ? m.promotion : '');
+
+        // Replaying the actual next main-line move just advances, no branch
+        if (view.line === 'main' && view.ply < mainLine.length - 1 &&
+            (uci === movesList[view.ply] || orig + dest === movesList[view.ply].slice(0, 4))) {
+            view.ply++;
+            renderView();
+            return;
+        }
+
+        var node = {
+            fen: reviewGame.fen(),
+            lastMove: [orig, dest],
+            check: reviewGame.in_check(),
+            san: m.san
+        };
+        if (view.line === 'var') {
+            // moving from mid-variation truncates the tail, then extends
+            variation.moves = variation.moves.slice(0, view.idx);
+            variation.moves.push(node);
+            view.idx = variation.moves.length;
+        } else {
+            variation = { startPly: view.ply, moves: [node] }; // replaces any old sideline
+            view = { line: 'var', idx: 1 };
+        }
+        renderView();
+    }
+
+    function bindReviewControls() {
+        if (reviewControlsBound) return;
+        reviewControlsBound = true;
+
+        $('#review-first').on('click', goFirst);
+        $('#review-prev').on('click', goPrev);
+        $('#review-next').on('click', goNext);
+        $('#review-last').on('click', goLast);
+
+        $('#review-moves').on('click', '.move-chip', function () {
+            view = { line: 'main', ply: parseInt($(this).attr('data-ply'), 10) };
+            renderView();
+        });
+        $('#review-var-moves').on('click', '.move-chip', function () {
+            view = { line: 'var', idx: parseInt($(this).attr('data-idx'), 10) };
+            renderView();
+        });
+        $('#review-back-main').on('click', function () {
+            var backPly = variation ? variation.startPly : 0;
+            variation = null;
+            view = { line: 'main', ply: backPly };
+            renderView();
+        });
+
+        $(document).on('keydown.review', function (e) {
+            if (!reviewMode) return;
+            if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+            if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
+        });
+
+        $('#engine-toggle').on('click', function () {
+            engineOn = !engineOn;
+            $(this).attr('aria-pressed', String(engineOn));
+            if (engineOn) {
+                $('#engine-eval').text('…');
+                engine.analyze(viewNode().fen);
+            } else {
+                engine.pause();
+                $('#engine-eval').text('Engine');
+                cg.setAutoShapes([]);
+            }
+        });
+    }
+
+    var engine = createEngineManager(function (u) {
+        $('#engine-eval').text(u.evalText);
+        cg.setAutoShapes([{ orig: u.bestUci.slice(0, 2), dest: u.bestUci.slice(2, 4), brush: 'blue' }]);
+    });
+    $(window).on('pagehide', function () { engine.destroy(); });
+
+    function enterReview() {
+        if (reviewMode) return;
+        reviewMode = true;
+        view = { line: 'main', ply: mainLine.length - 1 };
+        $('#review-panel').prop('hidden', false);
+        $('#show-solution-btn').prop('disabled', true);
+        bindReviewControls();
+        renderView(); // re-enables the board after cg.stop()
+    }
 
     // Handle window resize (keeps drag coordinates in sync)
     $(window).resize(function () {
