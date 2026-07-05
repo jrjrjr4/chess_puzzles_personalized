@@ -327,6 +327,45 @@ body {
   border: none !important;
 }
 
+/* Lichess-style board colors (#myBoard beats the chessboard.js class selectors,
+   which load after this file) */
+#myBoard .white-1e1d7 {
+  background-color: #f0d9b5;
+  color: #b58863;
+}
+
+#myBoard .black-3c85d {
+  background-color: #b58863;
+  color: #f0d9b5;
+}
+
+/* Click-to-move highlights (classes managed by applyHighlights in scripts.js) */
+#myBoard .square-55d63 {
+  position: relative;
+}
+
+#myBoard .highlight-selected {
+  background-color: rgba(20, 85, 30, 0.5) !important;
+}
+
+/* Dot on empty legal destination squares */
+#myBoard .highlight-legal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(rgba(20, 85, 30, 0.5) 19%, rgba(0, 0, 0, 0) 20%);
+  pointer-events: none;
+}
+
+/* Ring on legal capture squares */
+#myBoard .highlight-capture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(transparent 0%, transparent 79%, rgba(20, 85, 30, 0.3) 80%);
+  pointer-events: none;
+}
+
 /* Stats Page */
 .stats-container {
   max-width: 800px;
