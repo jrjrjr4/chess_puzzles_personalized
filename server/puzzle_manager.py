@@ -82,10 +82,21 @@ def load_puzzles_from_csv():
     return puzzle_list
 
 
-def get_random_puzzle(puzzle_list, theme_filter=None, popularity_bias=True):
+def _drop_excluded(candidates, exclude_ids):
+    """Returns candidates not in exclude_ids; falls back to the full list
+    rather than returning nothing (repeats beat no puzzle at all)."""
+    if not exclude_ids:
+        return candidates
+    fresh = [p for p in candidates if p['id'] not in exclude_ids]
+    return fresh if fresh else candidates
+
+
+def get_random_puzzle(puzzle_list, theme_filter=None, exclude_ids=None):
     """
-    Returns a random puzzle from puzzle_list. If popularity_bias is True,
-    we weight the selection by puzzle popularity.
+    Returns a uniformly random puzzle, optionally filtered by theme and
+    excluding already-seen puzzle ids. The pool is popularity-curated at
+    build time, so selection itself is unweighted — per-pick popularity
+    weighting concentrated picks on the same few puzzles.
     """
     import random
 
@@ -93,88 +104,55 @@ def get_random_puzzle(puzzle_list, theme_filter=None, popularity_bias=True):
     candidates = puzzle_list
     if theme_filter:
         candidates = [p for p in puzzle_list if theme_filter in p['themes']]
-        if not candidates:
-            return None
+    if not candidates:
+        return None
 
-    if not popularity_bias:
-        # Just pick randomly from candidates
-        return random.choice(candidates)
-
-    # Weighted pick by popularity. If popularity=0, fallback to minimal weight.
-    # We'll build a list of (puzzle, weight) tuples.
-    puzzle_weights = []
-    for p in candidates:
-        weight = max(1, p.get('popularity', 0))  # ensure at least weight=1
-        puzzle_weights.append((p, weight))
-
-    # Convert that to a random choice
-    total_weight = sum(w for (_, w) in puzzle_weights)
-    r = random.uniform(0, total_weight)
-    running_sum = 0
-    for puzzle, w in puzzle_weights:
-        if running_sum + w >= r:
-            return puzzle
-        running_sum += w
-
-    # Fallback, though we should never hit this if everything is correct
-    return None
+    candidates = _drop_excluded(candidates, exclude_ids)
+    return random.choice(candidates)
 
 
-def get_rating_matched_puzzle(puzzle_list, theme, user_rating, rating_range=200):
+def get_rating_matched_puzzle(puzzle_list, theme, user_rating, rating_range=200, exclude_ids=None):
     """
-    Selects a puzzle from the given theme that matches the user's rating.
-    Prefers puzzles within rating_range of the user's rating.
+    Selects a puzzle from the given theme near the user's rating, preferring
+    puzzles the user hasn't attempted. Fallback ladder: rating window minus
+    seen -> widened window minus seen -> whole theme minus seen -> whole
+    theme (repeats allowed as a last resort).
     """
     import random
-    
+
     # Filter by theme
     theme_puzzles = [p for p in puzzle_list if theme in p['themes']]
     if not theme_puzzles:
         return None
-    
+
+    exclude_ids = exclude_ids or set()
+    fresh_theme_puzzles = [p for p in theme_puzzles if p['id'] not in exclude_ids]
+
     # Find puzzles within rating range (prefer slightly harder puzzles)
     # Target range: user_rating - 100 to user_rating + 200
-    target_min = user_rating - 100
-    target_max = user_rating + rating_range
-    
-    matched_puzzles = [p for p in theme_puzzles if target_min <= p['rating'] <= target_max]
-    
-    # If no exact matches, expand the range
-    if not matched_puzzles:
-        # Try wider range
-        target_min = user_rating - 200
-        target_max = user_rating + 300
-        matched_puzzles = [p for p in theme_puzzles if target_min <= p['rating'] <= target_max]
-    
-    # If still no matches, use all puzzles from theme
-    if not matched_puzzles:
-        matched_puzzles = theme_puzzles
-    
-    # Weight by closeness to user rating (closer = higher weight)
-    # Also factor in popularity
-    puzzle_weights = []
-    for p in matched_puzzles:
-        rating_diff = abs(p['rating'] - user_rating)
-        # Closer ratings get higher weight. Max weight at exact match.
-        closeness_weight = max(1, 400 - rating_diff)
-        popularity_weight = max(1, p.get('popularity', 0))
-        # Combine weights (closeness matters more)
-        total_weight = closeness_weight * 2 + popularity_weight
-        puzzle_weights.append((p, total_weight))
-    
-    # Weighted random selection
-    total_weight = sum(w for (_, w) in puzzle_weights)
-    r = random.uniform(0, total_weight)
-    running_sum = 0
-    for puzzle, w in puzzle_weights:
-        if running_sum + w >= r:
-            return puzzle
-        running_sum += w
-    
-    return random.choice(matched_puzzles)
+    windows = [
+        (user_rating - 100, user_rating + rating_range),
+        (user_rating - 200, user_rating + 300),
+    ]
+    for target_min, target_max in windows:
+        matched = [p for p in fresh_theme_puzzles if target_min <= p['rating'] <= target_max]
+        if matched:
+            return random.choice(matched)
+
+    # Nothing unseen near the rating: any unseen theme puzzle
+    if fresh_theme_puzzles:
+        return random.choice(fresh_theme_puzzles)
+
+    # Everything in the theme has been attempted: allow repeats,
+    # still preferring the rating window
+    for target_min, target_max in windows:
+        matched = [p for p in theme_puzzles if target_min <= p['rating'] <= target_max]
+        if matched:
+            return random.choice(matched)
+    return random.choice(theme_puzzles)
 
 
-def get_adaptive_puzzle(puzzle_list, user_ratings):
+def get_adaptive_puzzle(puzzle_list, user_ratings, exclude_ids=None):
     """
     Selects a puzzle based on user weaknesses in the 10 tracked themes.
     user_ratings: dict mapping category -> rating (int)
@@ -221,11 +199,12 @@ def get_adaptive_puzzle(puzzle_list, user_ratings):
         selected_rating = user_ratings.get(selected_theme, DEFAULT_RATING)
     
     # Select puzzle from category, matching user's rating in that category
-    puzzle = get_rating_matched_puzzle(puzzle_list, selected_theme, selected_rating)
-    
+    puzzle = get_rating_matched_puzzle(puzzle_list, selected_theme, selected_rating,
+                                       exclude_ids=exclude_ids)
+
     # If no puzzle found for that theme, fall back to random
     if not puzzle:
-        puzzle = get_random_puzzle(puzzle_list)
-    
+        puzzle = get_random_puzzle(puzzle_list, exclude_ids=exclude_ids)
+
     return puzzle
 

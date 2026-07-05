@@ -107,6 +107,31 @@ class DBManager:
             print(f"Error in get_user_history: {e}")
             return []
 
+    def get_user_attempted_puzzle_ids(self, user_id):
+        """
+        Returns the set of puzzle_ids this user has ever attempted.
+        Paginated to dodge the 1000-row response cap.
+        """
+        if not self.client or not user_id:
+            return set()
+
+        try:
+            attempted = set()
+            page_size = 1000
+            offset = 0
+            while True:
+                response = self.client.table('puzzle_attempts').select('puzzle_id') \
+                    .eq('user_id', user_id).range(offset, offset + page_size - 1).execute()
+                rows = response.data or []
+                attempted.update(row['puzzle_id'] for row in rows)
+                if len(rows) < page_size:
+                    break
+                offset += page_size
+            return attempted
+        except Exception as e:
+            print(f"Error in get_user_attempted_puzzle_ids: {e}")
+            return set()
+
     def get_user_category_ratings(self, user_id):
         """Fetches all category ratings for a user (just the rating values)."""
         if not self.client or not user_id:

@@ -379,20 +379,33 @@ def random_puzzle_view():
     
     # Build ratings dict with all 10 categories
     user_ratings = get_all_user_ratings(stored_ratings)
-    
+
+    # Don't serve puzzles the user has already attempted (all-time, per
+    # account) or recently viewed (this session — also covers anonymous
+    # users and puzzles viewed but never attempted).
+    recent = session.get('recent_puzzles', [])
+    exclude_ids = set(recent)
+    if user and 'db_id' in user:
+        exclude_ids |= db_manager.get_user_attempted_puzzle_ids(user['db_id'])
+
     # Select puzzle
     puzzle = None
     if user and 'db_id' in user and not theme:
         from puzzle_manager import get_adaptive_puzzle
-        puzzle = get_adaptive_puzzle(puzzles, stored_ratings)
+        puzzle = get_adaptive_puzzle(puzzles, stored_ratings, exclude_ids=exclude_ids)
     else:
-        puzzle = get_random_puzzle(puzzles, theme_filter=theme)
-    
+        puzzle = get_random_puzzle(puzzles, theme_filter=theme, exclude_ids=exclude_ids)
+
     # Fallbacks
     if not puzzle:
-        puzzle = get_random_puzzle(puzzles)
+        puzzle = get_random_puzzle(puzzles, exclude_ids=exclude_ids)
     if not puzzle:
         return "No puzzles available", 500
+
+    # Remember this puzzle in the session's recent list
+    recent = [pid for pid in recent if pid != puzzle['id']]
+    recent.append(puzzle['id'])
+    session['recent_puzzles'] = recent[-100:]
     
     # Get tracked themes for this puzzle (with display names)
     puzzle_tracked_themes = [TRACKED_THEMES[t] for t in puzzle['themes'] if t in TRACKED_THEMES]

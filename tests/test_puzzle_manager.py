@@ -128,36 +128,36 @@ class TestGetRandomPuzzle:
     
     def test_get_random_puzzle_empty_list(self):
         """Test with empty puzzle list returns None."""
-        # With popularity_bias=True (default), empty list returns None
         result = get_random_puzzle([])
         assert result is None
-    
-    def test_get_random_puzzle_no_popularity_bias(self, sample_puzzles):
-        """Test without popularity bias."""
-        random.seed(42)  # For reproducibility
-        puzzle = get_random_puzzle(sample_puzzles, popularity_bias=False)
-        
+
+    def test_get_random_puzzle_excludes_seen(self, sample_puzzles):
+        """Excluded puzzle ids are never served while alternatives exist."""
+        random.seed(42)
+        seen = {p['id'] for p in sample_puzzles[:-1]}
+        only_fresh = sample_puzzles[-1]
+
+        for _ in range(50):
+            puzzle = get_random_puzzle(sample_puzzles, exclude_ids=seen)
+            assert puzzle['id'] == only_fresh['id']
+
+    def test_get_random_puzzle_all_excluded_allows_repeats(self, sample_puzzles):
+        """When everything has been seen, repeats are allowed over failing."""
+        seen = {p['id'] for p in sample_puzzles}
+        puzzle = get_random_puzzle(sample_puzzles, exclude_ids=seen)
         assert puzzle is not None
-    
-    def test_get_random_puzzle_popularity_bias(self, sample_puzzles):
-        """Test that popularity bias affects selection."""
-        # Run multiple times and check that higher popularity puzzles
-        # are selected more often (statistical test)
+
+    def test_get_random_puzzle_uniform_selection(self, sample_puzzles):
+        """Selection is roughly uniform (no popularity concentration)."""
         random.seed(42)
         selections = {}
-        
         for _ in range(1000):
-            puzzle = get_random_puzzle(sample_puzzles, popularity_bias=True)
-            pid = puzzle['id']
-            selections[pid] = selections.get(pid, 0) + 1
-        
-        # The puzzle with highest popularity should be selected more often
-        # than the one with lowest popularity (on average)
-        high_pop_puzzle = max(sample_puzzles, key=lambda p: p['popularity'])
-        low_pop_puzzle = min(sample_puzzles, key=lambda p: p['popularity'])
-        
-        # This is a statistical test, so we use a reasonable threshold
-        assert selections.get(high_pop_puzzle['id'], 0) > selections.get(low_pop_puzzle['id'], 0) * 0.5
+            puzzle = get_random_puzzle(sample_puzzles)
+            selections[puzzle['id']] = selections.get(puzzle['id'], 0) + 1
+
+        expected = 1000 / len(sample_puzzles)
+        for count in selections.values():
+            assert count > expected * 0.5
 
 
 class TestGetRatingMatchedPuzzle:
@@ -196,6 +196,27 @@ class TestGetRatingMatchedPuzzle:
         
         assert puzzle is None
     
+    def test_get_rating_matched_puzzle_excludes_seen(self):
+        """Unseen puzzles win even when a seen one matches the rating better."""
+        random.seed(42)
+        test_puzzles = [
+            {'id': 'seen', 'rating': 1550, 'themes': ['fork'], 'popularity': 90},
+            {'id': 'fresh', 'rating': 1700, 'themes': ['fork'], 'popularity': 50},
+        ]
+        for _ in range(25):
+            puzzle = get_rating_matched_puzzle(test_puzzles, 'fork', 1550,
+                                               exclude_ids={'seen'})
+            assert puzzle['id'] == 'fresh'
+
+    def test_get_rating_matched_puzzle_all_seen_allows_repeats(self):
+        """A fully-seen theme still serves a puzzle rather than nothing."""
+        test_puzzles = [
+            {'id': 'seen', 'rating': 1550, 'themes': ['fork'], 'popularity': 90},
+        ]
+        puzzle = get_rating_matched_puzzle(test_puzzles, 'fork', 1550,
+                                           exclude_ids={'seen'})
+        assert puzzle is not None
+
     def test_get_rating_matched_puzzle_expands_range(self):
         """Test that range expands when no exact matches found."""
         # All puzzles are far from target rating
