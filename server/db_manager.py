@@ -120,13 +120,15 @@ class DBManager:
             page_size = 1000
             offset = 0
             while True:
+                # .range() end bound is exclusive in this client, so a full
+                # page is page_size - 1 rows; shorter means last page
                 response = self.client.table('puzzle_attempts').select('puzzle_id') \
                     .eq('user_id', user_id).range(offset, offset + page_size - 1).execute()
                 rows = response.data or []
                 attempted.update(row['puzzle_id'] for row in rows)
-                if len(rows) < page_size:
+                if len(rows) < page_size - 1:
                     break
-                offset += page_size
+                offset += len(rows)
             return attempted
         except Exception as e:
             print(f"Error in get_user_attempted_puzzle_ids: {e}")
@@ -432,11 +434,13 @@ class DBManager:
             offset = 0
             
             while True:
+                # NOTE: this client's .range() end bound is exclusive, so a
+                # full page is page_size - 1 rows. Treat anything shorter as
+                # the final page (correct under either bound semantics).
                 response = self.client.table('puzzles').select('*').range(offset, offset + page_size - 1).execute()
-                if not response.data:
-                    break
-                
-                for row in response.data:
+                rows = response.data or []
+
+                for row in rows:
                     puzzle = {
                         'id': row['puzzle_id'],
                         'fen': row['fen'],
@@ -446,10 +450,10 @@ class DBManager:
                         'popularity': row['popularity']
                     }
                     puzzles.append(puzzle)
-                
-                if len(response.data) < page_size:
+
+                if len(rows) < page_size - 1:
                     break
-                offset += page_size
+                offset += len(rows)
             
             print(f"Loaded {len(puzzles)} puzzles from Supabase")
             return puzzles
